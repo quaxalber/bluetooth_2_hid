@@ -20,3 +20,5 @@ from bluetooth_2_usb.relay import (
     RelayController,
     list_readable_devices,
 )
+
+from bluetooth_2_usb.input_device_user_config import InputDeviceUserConfig

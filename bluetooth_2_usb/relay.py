@@ -6,6 +6,8 @@ from typing import NoReturn
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.mouse import Mouse
+from bluetooth_2_usb.input_device_user_config import InputDeviceUserConfig
+
 from evdev import (
     InputDevice,
     InputEvent,
@@ -152,7 +154,7 @@ class RelayController:
     """
 
     def __init__(
-        self, device_identifiers: list[str] = None, auto_discover: bool = False
+        self, input_device_user_config: InputDeviceUserConfig, device_identifiers: list[str] = None
     ) -> None:
         _enable_usb_devices()
         if not device_identifiers:
@@ -160,7 +162,8 @@ class RelayController:
         self._device_identifiers = [
             InputDeviceIdentifier(id) for id in device_identifiers
         ]
-        self._auto_discover = auto_discover
+        self._auto_discover = input_device_user_config['autodiscover']
+        self._grab_device = input_device_user_config['grab_device']
         self._task_group: TaskGroup = None
         self._discovery_task: Task = None
         self._relay_tasks: dict[str, Task] = {}
@@ -188,6 +191,8 @@ class RelayController:
     def _discover_devices(self) -> None:
         for device in list_readable_devices():
             if self._should_relay(device):
+                if(self._grab_device == True):
+                    device.grab()
                 self._create_relay_task(device)
 
     def _should_relay(self, device: InputDevice) -> bool:

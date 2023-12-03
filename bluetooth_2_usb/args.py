@@ -68,6 +68,13 @@ def parse_args() -> Namespace:
         default=False,
         help="List all available input devices and exit.",
     )
+    parser.add_argument(
+        "--grab_device",
+        "-g",
+        action="store_true",
+        default=False,
+        help="Grab the input device, i.e., suppress any events on your server device.",
+    )
 
     args = parser.parse_args()
 

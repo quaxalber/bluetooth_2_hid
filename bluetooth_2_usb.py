@@ -15,6 +15,7 @@ from usb_hid import unregister_disable
 from bluetooth_2_usb.args import parse_args
 from bluetooth_2_usb.logging import add_file_handler, get_logger
 from bluetooth_2_usb.relay import RelayController, list_readable_devices
+from bluetooth_2_usb.input_device_user_config import InputDeviceUserConfig
 
 
 _logger = get_logger()
@@ -53,7 +54,13 @@ async def _main() -> NoReturn:
     _logger.debug(log_handlers_message)
     _logger.info(f"Launching {_VERSIONED_NAME}")
 
-    controller = RelayController(args.device_ids, args.auto_discover)
+
+    input_device_config: InputDeviceUserConfig = {
+        "grab_device": args.grab_device,
+        "autodiscover": args.auto_discover
+    }
+
+    controller = RelayController(input_device_config, args.device_ids)
     await controller.async_relay_devices()
 
 
