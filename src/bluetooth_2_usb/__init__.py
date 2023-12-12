@@ -2,7 +2,7 @@
 # Gather everything into a single, convenient namespace.
 # --------------------------------------------------------------------------
 
-from bluetooth_2_usb.evdev import (
+from .evdev import (
     ecodes,
     evdev_to_usb_hid,
     find_key_name,
@@ -11,14 +11,10 @@ from bluetooth_2_usb.evdev import (
     is_consumer_key,
     is_mouse_button,
 )
-
-from bluetooth_2_usb.logging import add_file_handler, get_logger
-from bluetooth_2_usb.relay import (
-    IdentifierType,
-    InputDeviceIdentifier,
-    InputDeviceRelay,
+from .logging import add_file_handler, get_logger
+from .relay import (
+    DeviceIdentifier,
+    DeviceRelay,
     RelayController,
-    list_readable_devices,
+    list_input_devices,
 )
-
-from bluetooth_2_usb.input_device_user_config import InputDeviceUserConfig

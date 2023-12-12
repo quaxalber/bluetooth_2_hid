@@ -1,13 +1,18 @@
 from argparse import Namespace
 import argparse
+import atexit
 import sys
 
-from usb_hid import unregister_disable
+from usb_hid import disable
 
 
 class CustomArgumentParser(argparse.ArgumentParser):
     def print_help(self) -> None:
-        unregister_disable()
+        """
+        When the script is run with help or version flag, we need to unregister usb_hid.disable() from atexit
+        because else an exception occurs if the script is already running, e.g. as service.
+        """
+        atexit.unregister(disable)
         super().print_help()
 
 
@@ -69,11 +74,11 @@ def parse_args() -> Namespace:
         help="List all available input devices and exit.",
     )
     parser.add_argument(
-        "--grab_device",
+        "--grab_devices",
         "-g",
         action="store_true",
         default=False,
-        help="Grab the input device, i.e., suppress any events on your server device.",
+        help="Grab the input devices, i.e., suppress any events on your relay device (RPi).",
     )
 
     args = parser.parse_args()

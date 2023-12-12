@@ -1,25 +1,19 @@
-#!{python3.11-venv}
-"""
-Reads incoming Bluetooth mouse and keyboard events and forwards them to USB
-using Linux's gadget mode.
-"""
-
 import asyncio
+import atexit
 from logging import DEBUG
 import signal
 import sys
 from typing import NoReturn
 
-from usb_hid import unregister_disable
+from usb_hid import disable
 
-from bluetooth_2_usb.args import parse_args
-from bluetooth_2_usb.logging import add_file_handler, get_logger
-from bluetooth_2_usb.relay import RelayController, list_readable_devices
-from bluetooth_2_usb.input_device_user_config import InputDeviceUserConfig
+from src.bluetooth_2_usb.args import parse_args
+from src.bluetooth_2_usb.logging import add_file_handler, get_logger
+from src.bluetooth_2_usb.relay import RelayController, list_input_devices
 
 
 _logger = get_logger()
-_VERSION = "0.6.0"
+_VERSION = "0.6.7"
 _VERSIONED_NAME = f"Bluetooth 2 USB v{_VERSION}"
 
 
@@ -54,18 +48,12 @@ async def _main() -> NoReturn:
     _logger.debug(log_handlers_message)
     _logger.info(f"Launching {_VERSIONED_NAME}")
 
-
-    input_device_config: InputDeviceUserConfig = {
-        "grab_device": args.grab_device,
-        "autodiscover": args.auto_discover
-    }
-
-    controller = RelayController(input_device_config, args.device_ids)
+    controller = RelayController(args.device_ids, args.auto_discover, args.grab_devices)
     await controller.async_relay_devices()
 
 
 def _list_devices():
-    for dev in list_readable_devices():
+    for dev in list_input_devices():
         print(f"{dev.name}\t{dev.uniq if dev.uniq else dev.phys}\t{dev.path}")
     _exit_safely()
 
@@ -76,7 +64,11 @@ def _print_version():
 
 
 def _exit_safely():
-    unregister_disable()
+    """
+    When the script is run with help or version flag, we need to unregister usb_hid.disable() from atexit
+    because else an exception occurs if the script is already running, e.g. as service.
+    """
+    atexit.unregister(disable)
     sys.exit(0)
 
 

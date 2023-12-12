@@ -26,8 +26,6 @@ colored_output() {
 abort_install() {
   local message="$1"
   colored_output "${RED}" "Aborting installation. ${message}"
-  # Re-enable history expansion
-  set -H
   exit 1
 }
 
@@ -43,57 +41,68 @@ append_if_not_exist() {
   local text="$1"
   local file="$2"
   local backup="${file}.bak"
-
   # Create a backup of the original file
   cp "${file}" "${backup}" || abort_install "Failed creating backup of ${file}."
-
   if ! grep -q "^${text}" "${file}"; then
     echo "${text}" >> "${file}" || abort_install "Failed writing to ${file}."
   fi
 }
 
-# Install prerequisites.
-colored_output "${GREEN}" "Installing bluetooth_2_usb prerequisites..."
-{ apt update && apt upgrade -y && apt install -y git python3.11 python3.11-venv python3.11-dev && apt autoremove ; } || abort_install "Failed installing prerequisites."
+# Function to cleanup before exiting
+cleanup() {
+  # Re-enable history expansion
+  set -H
+}
 
-# Determine the current script's directory and the parent directory
-scripts_directory=$(dirname $(readlink -f "$0"))
-base_directory=$(dirname "${scripts_directory}")
-cd "${base_directory}"
+main() {
+  # Install prerequisites.
+  colored_output "${GREEN}" "Installing bluetooth_2_usb prerequisites..."
+  { apt-get update && apt-get install -y git python3.11 python3.11-venv ; } || abort_install "Failed installing prerequisites."
 
-# Initialize submodules.
-colored_output "${GREEN}" "Initializing submodules..."
-git submodule update --init --recursive || abort_install "Failed initializing submodules."
+  # Determine the current script's directory and the parent directory
+  scripts_directory=$(dirname $(readlink -f "$0"))
+  base_directory=$(dirname "${scripts_directory}")
+  cd "${base_directory}"
 
-colored_output "${GREEN}" "Creating virtual Python environment..."
-python3.11 -m venv venv || abort_install "Failed creating virtual Python environment."
+  # Capture the current user and group ownership 
+  current_user=$(stat -c '%U' .) || abort_update "Failed retrieving current user ownership."
+  current_group=$(stat -c '%G' .) || abort_update "Failed retrieving current group ownership."
 
-colored_output "${GREEN}" "Installing submodules in virtual Python environment..."
-venv/bin/pip3.11 install submodules/* || abort_install "Failed installing submodules."
+  colored_output "${GREEN}" "Creating Python virtual environment \"${base_directory}/.venv\"..."
+  python3.11 -m venv .venv || abort_install "Failed creating Python virtual environment."
 
-# Modify system files.
-colored_output "${GREEN}" "Modifying system files..."
-append_if_not_exist "dtoverlay=dwc2" "/boot/config.txt"
-append_if_not_exist "dwc2" "/etc/modules"
-append_if_not_exist "libcomposite" "/etc/modules"
+  colored_output "${GREEN}" "Installing dependencies in venv..."
+  .venv/bin/pip3.11 install -r requirements.txt -c constraints.txt || abort_install "Failed installing dependencies."
 
-cp /boot/cmdline.txt /boot/cmdline.txt.bak || colored_output "${RED}" "Failed creating backup of /boot/cmdline.txt."
-sed -i 's/modules-load=[^[:space:]]* //g' /boot/cmdline.txt || abort_install "Failed writing to /boot/cmdline.txt."
-sed -i 's/rootwait/rootwait modules-load=dwc2/g' /boot/cmdline.txt || abort_install "Failed writing to /boot/cmdline.txt."
+  # Modify system files.
+  colored_output "${GREEN}" "Modifying system files..."
+  append_if_not_exist "dtoverlay=dwc2" "/boot/config.txt"
+  append_if_not_exist "dwc2" "/etc/modules"
+  append_if_not_exist "libcomposite" "/etc/modules"
+  cp /boot/cmdline.txt /boot/cmdline.txt.bak || colored_output "${YELLOW}" "Failed creating backup of /boot/cmdline.txt."
+  sed -i 's/modules-load=[^[:space:]]* //g' /boot/cmdline.txt || abort_install "Failed writing to /boot/cmdline.txt."
+  sed -i 's/rootwait/rootwait modules-load=dwc2/g' /boot/cmdline.txt || abort_install "Failed writing to /boot/cmdline.txt."
+  ln -s "${base_directory}/bluetooth_2_usb.sh" /usr/bin/bluetooth_2_usb || colored_output "${YELLOW}" "Failed creating symlink."
+  ln -s "${base_directory}/bluetooth_2_usb.service" /etc/systemd/system/ || colored_output "${YELLOW}" "Failed creating symlink."
 
-# Make script executable and create symlinks. 
-chmod 744 "${base_directory}/bluetooth_2_usb.py" || abort_install "Failed making script executable."
-ln -s "${base_directory}/bluetooth_2_usb.py" /usr/bin/bluetooth_2_usb || colored_output "${RED}" "Failed creating symlink."
-ln -s "${base_directory}/bluetooth_2_usb.service" /etc/systemd/system/ || colored_output "${RED}" "Failed creating symlink."
+  # Enable service.
+  systemctl enable bluetooth_2_usb.service || abort_install "Failed enabling service."
+  systemctl start bluetooth_2_usb.service || abort_install "Failed starting service."
 
-# Replace placeholder with actual path to venv. The expression ${base_directory//\//\\/} is used to replace all occurrences of slashes (/) in the variable base_directory with escaped slashes (\/)
-sed -i "s/{python3.11-venv}/${base_directory//\//\\/}\/venv\/bin\/python3.11/g" "${base_directory}/bluetooth_2_usb.py" || abort_install "Failed writing to bluetooth_2_usb.py."
+  chown -R ${current_user}:${current_group} "${base_directory}"
 
-# Create log dir and enable service. 
-mkdir /var/log/bluetooth_2_usb || colored_output "${RED}" "Failed creating log dir."
-systemctl enable bluetooth_2_usb.service || abort_install "Failed enabling service."
+  version=$(/usr/bin/bluetooth_2_usb -v)
+  if [[ $version == *"Bluetooth 2 USB"* ]]; then
+    colored_output "${GREEN}" "Installation successful. Now running ${version}"
+    colored_output "${YELLOW}" "A reboot might be required."
+  else
+    colored_output "${RED}" "Installation failed. The version information could not be retrieved."
+  fi
+}
 
-colored_output "${GREEN}" "Installation successful."
-
-# Re-enable history expansion
-set -H
+# Trap EXIT signal and call cleanup function
+trap cleanup EXIT
+# Create log dir 
+mkdir /var/log/bluetooth_2_usb || colored_output "${YELLOW}" "Failed creating log dir."
+# Call the main function and pipe its output to tee
+main 2>&1 | tee  /var/log/bluetooth_2_usb/install.log

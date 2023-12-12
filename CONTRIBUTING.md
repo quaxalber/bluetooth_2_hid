@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # Contributing to Bluetooth 2 USB
 
-Thank you for considering contributing to Bluetooth 2 USB! We value your effort and are happy to provide guidelines to help you get started. Following these guidelines helps to communicate that you respect the time of the developers managing and developing this open-source project. But don't be too concerned if you're still new to all this. The maintainers are happy to assist and guide new contributors! 
+Thank you for considering contributing to Bluetooth 2 USB! We value your effort and are happy to provide guidelines to help you get started. Following these guidelines helps to communicate that you respect the time of the developers managing and developing this open-source project. But don't be too concerned if you're still new to all this. The maintainers are happy to assist and guide new contributors!
 
 <!-- omit in toc -->
 ## Table of Contents
@@ -23,42 +23,36 @@ By participating in this project, you are expected to uphold our [Code of Conduc
 ## 2. Getting Started
 
 - [Fork the repository](https://docs.github.com/en/get-started/quickstart/fork-a-repo) on GitHub
-  
+ 
 - Install required packages to your Linux machine:
-  
-  ```console 
-  sudo apt update && sudo apt install -y git python3.11 python3.11-venv python3.11-dev
+ 
+  ```console
+  sudo apt update && sudo apt install -y git python3.11 python3.11-venv
   ```
 
 - Clone the forked repository:
-  
+ 
   ```console
-  git clone https://github.com/YOUR-ACCOUNT/bluetooth_2_usb.git
+  git clone https://github.com/YOUR-ACCOUNT/bluetooth_2_usb.git && cd bluetooth_2_usb
   ```
 
-- Initialize submodules:
-  
-  ```console 
-  cd bluetooth_2_usb && git submodule update --init --recursive
+- Create a Python virtual environment:
+ 
+  ```console
+  python3.11 -m venv .venv
   ```
-
-- Create a virtual Python environment:
-  
-  ```console 
-  python3.11 -m venv venv 
-  ```
-  
-- Install submodules in virtual Python environment:
-  
-  ```console 
-  venv/bin/pip3.11 install submodules/* 
-  ```  
+ 
+- Install dependencies in Python virtual environment:
+ 
+  ```console
+  .venv/bin/pip3.11 install -r requirements.txt -c constraints.txt
+  ``` 
 
 - Open the repo in your favorite IDE
-  
-- Make sure that your IDE is using python3.11 from `bluetooth_2_usb/venv/bin/`, e.g. in VS Code:
-  
-  `CTRL + SHIFT + P` > type `Python Select Interpreter` > `Enter interpreter path` 
+ 
+- Make sure that your IDE is using `python3.11` from `bluetooth_2_usb/.venv/bin/`, e.g., in VS Code:
+ 
+  `CTRL + SHIFT + P` > type `Python Select Interpreter` > select `Enter interpreter path` > select `Find...`
 
 ## 3. Coding Style
 
@@ -106,14 +100,14 @@ Run Black:
 black .
 ```
 
-This will automatically reformat your code to conform to the project's coding style. There are also plugins available for many IDEs, e.g. [for vscode](https://code.visualstudio.com/docs/python/formatting). 
+This will automatically reformat your code to conform to the project's coding style. There are also plugins available for many IDEs, e.g. [for vscode](https://code.visualstudio.com/docs/python/formatting).
 
 ## 4. Pull Requests
 
 - Create a new branch for each feature or bugfix you are working on.
-- Commit your changes following the [coding style](#3-coding-style) guidelines. Add concise commit messages. 
+- Commit your changes following the [coding style](#3-coding-style) guidelines. Add concise commit messages.
 - Push your changes to your fork.
-- [Create a new Pull Request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests) targeting the main branch of the official repository. A short description helps the maintainers reviewing the changes. 
+- [Create a new Pull Request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests) targeting the main branch of the official repository. A short description helps the maintainers reviewing the changes.
 
 ## 5. Reporting Issues
 

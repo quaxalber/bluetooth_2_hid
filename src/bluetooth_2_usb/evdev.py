@@ -4,7 +4,7 @@ from adafruit_hid.consumer_control_code import ConsumerControlCode
 from adafruit_hid.keycode import Keycode, MouseButton
 from evdev import InputEvent, KeyEvent, RelEvent
 
-from bluetooth_2_usb.logging import get_logger
+from .logging import get_logger
 
 
 _logger = get_logger()
@@ -14,7 +14,7 @@ _logger = get_logger()
 #
 # Copyright (c) 1999-2002 Vojtech Pavlik
 # Copyright (c) 2015 Hans de Goede <hdegoede@redhat.com>
-# Copyright (c) 2023 Benjamin T. <github.com/quaxalber>
+# Copyright (c) 2023 Benjamin T. <evdev@quaxalber.de>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License version 2 as published by

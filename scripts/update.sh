@@ -21,9 +21,13 @@ colored_output() {
 abort_update() {
   local message="$1"
   colored_output "${RED}" "Aborting update. ${message}"
+  exit 1
+}
+
+# Function to cleanup before exiting
+cleanup() {
   # Re-enable history expansion
   set -H
-  exit 1
 }
 
 # Check for superuser privileges
@@ -33,51 +37,30 @@ if [[ $EUID -ne 0 ]]; then
   exec sudo bash "$0" "$@"
 fi
 
+# Trap EXIT signal and call cleanup function
+trap cleanup EXIT
+
 # Determine the current script's directory and the parent directory
 scripts_directory=$(dirname $(readlink -f "$0"))
 base_directory=$(dirname "${scripts_directory}")
 cd "${base_directory}"
 
-colored_output "${GREEN}" "Fetching updates from GitHub..."
+current_version=$(/usr/bin/bluetooth_2_usb -v)
+latest_vesion=$(git tag -l | sort -V | tail -n1)
+colored_output "${GREEN}" "Updating ${current_version} -> ${latest_vesion}..."
 
-remote_name="origin"
-current_branch=$(git symbolic-ref --short HEAD || abort_update "Failed retrieving currently checked out branch.")
+# Capture the current user and group ownership and branch
+current_user=$(stat -c '%U' .) || abort_update "Failed retrieving current user ownership."
+current_group=$(stat -c '%G' .) || abort_update "Failed retrieving current group ownership."
+current_branch=$(git symbolic-ref --short HEAD) || abort_update "Failed retrieving currently checked out branch."
 
-# Force Git to use English for its messages, regardless of the user's language settings.
-user_lang=$LANG
-export LANG=C
-
-# Fetch the latest changes from the remote
-{ git fetch ${remote_name} || colored_output "${RED}" "Failed fetching changes from ${remote_name}." ; } | tee .tmpfile
-fetch_output=$(<.tmpfile)
-rm .tmpfile
-
-export LANG=${user_lang}
-
-# Compare the local branch with the remote branch
-if [ $(git rev-parse HEAD) != $(git rev-parse ${remote_name}/${current_branch}) ]; then
-  colored_output "${GREEN}" "Changes are available to pull."
-else
-  colored_output "${GREEN}" "No changes to pull."
-  exit 0
-fi
-
-git stash || abort_update "Failed stashing local changes."
-git merge || abort_update "Failed merging changes from ${remote_name}."
-git stash pop --index || abort_update "Failed applying local changes from stash."
-
-# Check if there are changes in any submodule 
-if echo "${fetch_output}" | grep -q "Fetching submodule"; then
-  colored_output "${GREEN}" "Updating submodules..."
-  git submodule update --init --recursive || abort_update "Failed updating submodules."
-  venv/bin/pip3.11 install submodules/* || abort_update "Failed installing submodules."
-fi
-
-colored_output "${GREEN}" "Restarting service..."
-
-{ systemctl daemon-reload && systemctl restart bluetooth_2_usb.service ; } || abort_update "Failed restarting service."
-
-colored_output "${GREEN}" "Update successful. Now running $(venv/bin/python3.11 bluetooth_2_usb.py -v)"
-
-# Re-enable history expansion
-set -H
+{
+  scripts/uninstall.sh && 
+  cd .. &&  
+  rm -rf "${base_directory}" && 
+  git clone https://github.com/quaxalber/bluetooth_2_usb.git &&  
+  cd "${base_directory}" && 
+  git checkout "${current_branch}" &&
+  chown -R ${current_user}:${current_group} "${base_directory}" &&
+  scripts/install.sh ; 
+} || abort_update "Failed updating Bluetooth 2 USB"
