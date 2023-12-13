@@ -92,49 +92,49 @@ def parse_args() -> Arguments:
         "-i",
         type=lambda input: [item.strip() for item in input.split(",")],
         default=None,
-        help="Comma-separated list of identifiers for input devices to be relayed\nAn identifier is either the input device path, the MAC address or any case-insensitive substring of the device name\nExample: --device_ids '/dev/input/event2,a1:b2:c3:d4:e5:f6,0A-1B-2C-3D-4E-5F,logi'\nDefault is None",
+        help="Comma-separated list of identifiers for input devices to be relayed.\nAn identifier is either the input device path, the MAC address or any case-insensitive substring of the device name.\nExample: --device_ids '/dev/input/event2,a1:b2:c3:d4:e5:f6,0A-1B-2C-3D-4E-5F,logi'\nDefault: None",
     )
     parser.add_argument(
         "--auto_discover",
         "-a",
         action="store_true",
         default=False,
-        help="Enable auto-discovery mode. All readable input devices will be relayed automatically\nAuto-discovery is disabled by default",
+        help="Enable auto-discovery mode. All readable input devices will be relayed automatically.\nDefault: disabled",
     )
     parser.add_argument(
         "--grab_devices",
         "-g",
         action="store_true",
         default=False,
-        help="Grab the input devices, i.e., suppress any events on your relay device\nDevices are not grabbed by default",
+        help="Grab the input devices, i.e., suppress any events on your relay device.\nDevices are not grabbed by default.",
     )
     parser.add_argument(
         "--list_devices",
         "-l",
         action="store_true",
         default=False,
-        help="List all available input devices and exit",
+        help="List all available input devices and exit.",
     )
     parser.add_argument(
         "--log_to_file",
         "-f",
         action="store_true",
         default=False,
-        help="Add a handler that logs to file additionally to stdout",
+        help="Add a handler that logs to file, additionally to stdout.",
     )
     parser.add_argument(
         "--log_path",
         "-p",
         type=str,
         default="/var/log/bluetooth_2_usb/bluetooth_2_usb.log",
-        help="The path of the log file\nDefault is /var/log/bluetooth_2_usb/bluetooth_2_usb.log",
+        help="The path of the log file\nDefault: /var/log/bluetooth_2_usb/bluetooth_2_usb.log",
     )
     parser.add_argument(
         "--debug",
         "-d",
         action="store_true",
         default=False,
-        help="Enable debug mode (Increases log verbosity)\nDefault is disabled",
+        help="Enable debug mode (Increases log verbosity)\nDefault: disabled",
     )
     parser.add_argument(
         "--version",
