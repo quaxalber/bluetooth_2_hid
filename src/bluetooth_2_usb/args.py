@@ -72,8 +72,8 @@ class CustomArgumentParser(argparse.ArgumentParser):
     def add_help_argument(self):
         # Add the help argument last
         self.add_argument(
-            "-h",
             "--help",
+            "-h",
             action="help",
             default=argparse.SUPPRESS,
             help="Show this help message and exit.",
