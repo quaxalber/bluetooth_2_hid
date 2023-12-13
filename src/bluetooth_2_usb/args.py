@@ -9,7 +9,7 @@ from usb_hid import disable
 class CustomArgumentParser(argparse.ArgumentParser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, add_help=False, **kwargs)
-        self.register('action', 'help', _HelpAction)  # Register the help action
+        self.register("action", "help", _HelpAction)  # Register the help action
 
     def add_arguments(self):
         self.add_argument(
@@ -72,17 +72,24 @@ class CustomArgumentParser(argparse.ArgumentParser):
     def add_help_argument(self):
         # Add the help argument last
         self.add_argument(
-            '-h', '--help', action='help', default=argparse.SUPPRESS,
-            help='Show this help message and exit.'
+            "-h",
+            "--help",
+            action="help",
+            default=argparse.SUPPRESS,
+            help="Show this help message and exit.",
         )
 
-class _HelpAction(argparse._HelpAction):
-    def __call__(self, parser, namespace, values, option_string=None):
+    def print_help(self) -> None:
         """
         When the script is run with help or version flag, we need to unregister usb_hid.disable() from atexit
         because else an exception occurs if the script is already running, e.g. as service.
         """
         atexit.unregister(disable)
+        super().print_help()
+
+
+class _HelpAction(argparse._HelpAction):
+    def __call__(self, parser, namespace, values, option_string=None):
         parser.print_help()
         parser.exit()
 
@@ -158,12 +165,14 @@ def parse_args() -> Arguments:
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
+    parser.add_arguments()
+    parser.add_help_argument()
+    args = parser.parse_args()
+
     # Check if no arguments were provided
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
-
-    args = parser.parse_args()
 
     return Arguments(
         device_ids=args.device_ids,
