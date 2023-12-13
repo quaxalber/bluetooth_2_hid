@@ -1,7 +1,7 @@
-from argparse import Namespace
 import argparse
 import atexit
 import sys
+from typing import Optional, List
 
 from usb_hid import disable
 
@@ -16,9 +16,75 @@ class CustomArgumentParser(argparse.ArgumentParser):
         super().print_help()
 
 
-def parse_args() -> Namespace:
+class Arguments:
+    __slots__ = [
+        "_device_ids",
+        "_auto_discover",
+        "_grab_devices",
+        "_list_devices",
+        "_log_to_file",
+        "_log_path",
+        "_debug",
+        "_version",
+    ]
+
+    def __init__(
+        self,
+        device_ids: Optional[List[str]],
+        auto_discover: bool,
+        grab_devices: bool,
+        list_devices: bool,
+        log_to_file: bool,
+        log_path: str,
+        debug: bool,
+        version: bool,
+    ):
+        self._device_ids = device_ids
+        self._auto_discover = auto_discover
+        self._grab_devices = grab_devices
+        self._list_devices = list_devices
+        self._log_to_file = log_to_file
+        self._log_path = log_path
+        self._debug = debug
+        self._version = version
+
+    @property
+    def device_ids(self) -> Optional[List[str]]:
+        return self._device_ids
+
+    @property
+    def auto_discover(self) -> bool:
+        return self._auto_discover
+
+    @property
+    def grab_devices(self) -> bool:
+        return self._grab_devices
+
+    @property
+    def list_devices(self) -> bool:
+        return self._list_devices
+
+    @property
+    def log_to_file(self) -> bool:
+        return self._log_to_file
+
+    @property
+    def log_path(self) -> str:
+        return self._log_path
+
+    @property
+    def debug(self) -> bool:
+        return self._debug
+
+    @property
+    def version(self) -> bool:
+        return self._version
+
+
+def parse_args() -> Arguments:
     parser = CustomArgumentParser(
         description="Bluetooth to USB HID relay. Handles Bluetooth keyboard and mouse events from multiple input devices and translates them to USB using Linux's gadget mode.",
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     parser.add_argument(
@@ -28,7 +94,7 @@ def parse_args() -> Namespace:
         default=None,
         help="Comma-separated list of identifiers for input devices to be relayed.\n\n \
           An identifier is either the input device path, the MAC address or any case-insensitive substring of the device name.\n\n \
-          Default is None.\n\n \
+          Default is None.\n \
           Example: --device_ids '/dev/input/event2,a1:b2:c3:d4:e5:f6,0A-1B-2C-3D-4E-5F,logi'",
     )
     parser.add_argument(
@@ -39,32 +105,11 @@ def parse_args() -> Namespace:
         help="Enable auto-discovery mode. All readable input devices will be relayed automatically.",
     )
     parser.add_argument(
-        "--debug",
-        "-d",
+        "--grab_devices",
+        "-g",
         action="store_true",
         default=False,
-        help="Enable debug mode. Increases log verbosity",
-    )
-    parser.add_argument(
-        "--log_to_file",
-        "-f",
-        action="store_true",
-        default=False,
-        help="Add a handler that logs to file additionally to stdout. ",
-    )
-    parser.add_argument(
-        "--log_path",
-        "-p",
-        type=str,
-        default="/var/log/bluetooth_2_usb/bluetooth_2_usb.log",
-        help="The path of the log file. Default is /var/log/bluetooth_2_usb/bluetooth_2_usb.log.",
-    )
-    parser.add_argument(
-        "--version",
-        "-v",
-        action="store_true",
-        default=False,
-        help="Display the version number of this software and exit.",
+        help="Grab the input devices, i.e., suppress any events on your relay device.",
     )
     parser.add_argument(
         "--list_devices",
@@ -74,11 +119,32 @@ def parse_args() -> Namespace:
         help="List all available input devices and exit.",
     )
     parser.add_argument(
-        "--grab_devices",
-        "-g",
+        "--log_to_file",
+        "-f",
         action="store_true",
         default=False,
-        help="Grab the input devices, i.e., suppress any events on your relay device (RPi).",
+        help="Add a handler that logs to file additionally to stdout.",
+    )
+    parser.add_argument(
+        "--log_path",
+        "-p",
+        type=str,
+        default="/var/log/bluetooth_2_usb/bluetooth_2_usb.log",
+        help="The path of the log file.",
+    )
+    parser.add_argument(
+        "--debug",
+        "-d",
+        action="store_true",
+        default=False,
+        help="Enable debug mode. Increases log verbosity",
+    )
+    parser.add_argument(
+        "--version",
+        "-v",
+        action="store_true",
+        default=False,
+        help="Display the version number of this software and exit.",
     )
 
     args = parser.parse_args()
@@ -88,4 +154,13 @@ def parse_args() -> Namespace:
         parser.print_help()
         sys.exit(1)
 
-    return args
+    return Arguments(
+        device_ids=args.device_ids,
+        auto_discover=args.auto_discover,
+        grab_devices=args.grab_devices,
+        list_devices=args.list_devices,
+        log_to_file=args.log_to_file,
+        log_path=args.log_path,
+        debug=args.debug,
+        version=args.version,
+    )
