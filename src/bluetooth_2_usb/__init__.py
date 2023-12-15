@@ -1,7 +1,7 @@
 # --------------------------------------------------------------------------
 # Gather everything into a single, convenient namespace.
 # --------------------------------------------------------------------------
-
+from . import args, evdev, logging, relay
 from .evdev import (
     ecodes,
     evdev_to_usb_hid,
