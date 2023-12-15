@@ -17,7 +17,7 @@ from bluetooth_2_usb import (
 
 
 _logger = get_logger()
-_VERSION = "0.7.3-2"
+_VERSION = "0.7.3-3"
 _VERSIONED_NAME = f"Bluetooth 2 USB v{_VERSION}"
 
 

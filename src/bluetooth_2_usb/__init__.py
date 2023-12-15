@@ -1,7 +1,9 @@
 # --------------------------------------------------------------------------
 # Gather everything into a single, convenient namespace.
 # --------------------------------------------------------------------------
+from . import args, logging, evdev, relay
 from .args import parse_args
+from .logging import add_file_handler, get_logger
 from .evdev import (
     ecodes,
     evdev_to_usb_hid,
@@ -11,7 +13,6 @@ from .evdev import (
     is_consumer_key,
     is_mouse_button,
 )
-from .logging import add_file_handler, get_logger
 from .relay import (
     DeviceIdentifier,
     DeviceRelay,
