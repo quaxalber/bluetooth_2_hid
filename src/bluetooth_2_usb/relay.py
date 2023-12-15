@@ -146,7 +146,7 @@ def _move_mouse(event: RelEvent) -> None:
     x, y, mwheel = get_mouse_movement(event)
     coordinates = f"(x={x}, y={y}, mwheel={mwheel})"
     try:
-        _logger.debug(f"Moving mouse {_mouse_gadget} {coordinates}")
+        _logger.debug(f"Moving {_mouse_gadget} {coordinates}")
         _mouse_gadget.move(x, y, mwheel)
     except Exception:
         _logger.exception(f"Failed moving mouse {_mouse_gadget} {coordinates}")
