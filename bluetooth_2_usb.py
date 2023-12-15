@@ -20,6 +20,7 @@ _VERSIONED_NAME = f"Bluetooth 2 USB v{_VERSION}"
 def _signal_handler(sig, frame) -> None:
     sig_name = signal.Signals(sig).name
     _logger.info(f"Received signal: {sig_name}, frame: {frame}")
+    sys.exit(0)
 
 
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
