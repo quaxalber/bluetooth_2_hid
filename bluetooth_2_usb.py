@@ -17,13 +17,13 @@ _VERSION = "0.7.2"
 _VERSIONED_NAME = f"Bluetooth 2 USB v{_VERSION}"
 
 
-def _signal_handler(sig, frame) -> NoReturn:
-    _logger.info(f"Exiting gracefully. Received signal: {sig}, frame: {frame}")
-    sys.exit(0)
+def _signal_handler(sig, frame) -> None:
+    sig_name = signal.Signals(sig).name
+    _logger.info(f"Received signal: {sig_name}, frame: {frame}")
 
 
-signal.signal(signal.SIGINT, _signal_handler)
-signal.signal(signal.SIGTERM, _signal_handler)
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+    signal.signal(sig, _signal_handler)
 
 
 async def _main() -> NoReturn:
