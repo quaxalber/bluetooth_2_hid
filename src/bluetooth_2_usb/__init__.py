@@ -1,7 +1,6 @@
 # --------------------------------------------------------------------------
 # Gather everything into a single, convenient namespace.
 # --------------------------------------------------------------------------
-from . import args, evdev, logging, relay
 from .args import parse_args
 from .evdev import (
     ecodes,
