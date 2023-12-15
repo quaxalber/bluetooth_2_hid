@@ -22,7 +22,7 @@ from .logging import get_logger
 _logger = get_logger()
 _keyboard_gadget: Optional[Keyboard] = None
 _mouse_gadget: Optional[Mouse] = None
-_consumer_gadge: Optional[ConsumerControl] = None
+_consumer_gadget: Optional[ConsumerControl] = None
 
 PATH = "path"
 MAC = "MAC"
