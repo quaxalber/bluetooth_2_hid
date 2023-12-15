@@ -118,7 +118,7 @@ class DeviceRelay:
         return self._input_device
 
     def __str__(self) -> str:
-        return f"relay for {self.input_device.name}"
+        return f"relay for {self.input_device}"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.input_device!r}, {self._grab_device})"
