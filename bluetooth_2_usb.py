@@ -7,9 +7,9 @@ from typing import NoReturn
 
 from usb_hid import disable
 
-from src.bluetooth_2_usb.args import parse_args
-from src.bluetooth_2_usb.logging import add_file_handler, get_logger
-from src.bluetooth_2_usb.relay import RelayController, list_input_devices
+from bluetooth_2_usb.args import parse_args
+from bluetooth_2_usb.logging import add_file_handler, get_logger
+from bluetooth_2_usb.relay import RelayController, list_input_devices
 
 
 _logger = get_logger()

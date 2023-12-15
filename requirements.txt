@@ -1,3 +1,4 @@
+bluetooth_2_usb
 evdev
 quax-Blinka
 quax-circuitpython-hid
