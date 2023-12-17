@@ -45,7 +45,7 @@ By participating in this project, you are expected to uphold our [Code of Conduc
 - Install dependencies in `venv`:
  
   ```console
-  venv/bin/pip3.11 install -r requirements.txt -c constraints_adafruit.txt -c constraints_b2u.txt
+  venv/bin/pip3.11 install -r requirements.txt
   ``` 
 
 - Open the repo in your favorite IDE
