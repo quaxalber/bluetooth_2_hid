@@ -130,7 +130,7 @@ class DeviceRelay:
 
     async def _async_relay_event(self, input_event: InputEvent) -> None:
         event = categorize(input_event)
-        _logger.debug(f"Received {event} from {self.input_device.name}")
+        # _logger.debug(f"Received {event} from {self.input_device.name}")
         func = None
         if isinstance(event, RelEvent):
             func = _move_mouse
@@ -147,7 +147,7 @@ def _move_mouse(event: RelEvent) -> None:
     x, y, mwheel = get_mouse_movement(event)
     coordinates = f"(x={x}, y={y}, mwheel={mwheel})"
     try:
-        _logger.debug(f"Moving {_mouse_gadget} {coordinates}")
+        # _logger.debug(f"Moving {_mouse_gadget} {coordinates}")
         _mouse_gadget.move(x, y, mwheel)
     except Exception:
         _logger.exception(f"Failed moving {_mouse_gadget} {coordinates}")
