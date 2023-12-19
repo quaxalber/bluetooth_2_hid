@@ -1473,8 +1473,8 @@ _MOUSE_BUTTONS = set(
 """Mouse button ecodes"""
 
 
-def evdev_to_usb_hid(event: KeyEvent) -> tuple[int | None, str | None]:
-    scancode: int = event.scancode
+def evdev_to_usb_hid(event: InputEvent) -> tuple[int | None, str | None]:
+    scancode: int = event.code
     key_name = find_key_name(event)
     hid_usage_id = _EVDEV_TO_USB_HID.get(scancode, None)
     hid_usage_name = find_usage_name(event, hid_usage_id)
@@ -1487,8 +1487,8 @@ def evdev_to_usb_hid(event: KeyEvent) -> tuple[int | None, str | None]:
     return hid_usage_id, hid_usage_name
 
 
-def find_key_name(event: KeyEvent) -> str | None:
-    scancode: int = event.scancode
+def find_key_name(event: InputEvent) -> str | None:
+    scancode: int = event.code
     for attribute in _cached_dir(ecodes):
         if _cached_getattr(ecodes, attribute) == scancode and attribute.startswith(
             ("KEY_", "BTN_")
@@ -1497,7 +1497,7 @@ def find_key_name(event: KeyEvent) -> str | None:
     return None
 
 
-def find_usage_name(event: KeyEvent, hid_usage_id: int | None) -> str | None:
+def find_usage_name(event: InputEvent, hid_usage_id: int | None) -> str | None:
     code_type = _get_hid_code_type(event)
     for attribute in _cached_dir(code_type):
         if _cached_getattr(code_type, attribute) == hid_usage_id:
@@ -1518,7 +1518,7 @@ def _cached_dir(
 
 
 def _get_hid_code_type(
-    event: KeyEvent,
+    event: InputEvent,
 ) -> type[ConsumerControlCode] | type[Keycode] | type[MouseButton]:
     if is_consumer_key(event):
         return ConsumerControlCode
@@ -1527,21 +1527,20 @@ def _get_hid_code_type(
     return Keycode
 
 
-def is_mouse_button(event: KeyEvent) -> bool:
-    return event.scancode in _MOUSE_BUTTONS
+def is_mouse_button(event: InputEvent) -> bool:
+    return event.code in _MOUSE_BUTTONS
 
 
-def is_consumer_key(event: KeyEvent) -> bool:
-    return event.scancode in _CONSUMER_KEYS
+def is_consumer_key(event: InputEvent) -> bool:
+    return event.code in _CONSUMER_KEYS
 
 
-def get_mouse_movement(event: RelEvent) -> tuple[int, int, int]:
-    input_event: InputEvent = event.event
+def get_mouse_movement(event: InputEvent) -> tuple[int, int, int]:
     x, y, mwheel = 0, 0, 0
-    if input_event.code == ecodes.REL_X:
-        x = input_event.value
-    elif input_event.code == ecodes.REL_Y:
-        y = input_event.value
-    elif input_event.code == ecodes.REL_WHEEL:
-        mwheel = input_event.value
+    if event.code == ecodes.REL_X:
+        x = event.value
+    elif event.code == ecodes.REL_Y:
+        y = event.value
+    elif event.code == ecodes.REL_WHEEL:
+        mwheel = event.value
     return x, y, mwheel

@@ -11,6 +11,7 @@ import usb_hid
 from usb_hid import Device
 
 from .evdev import (
+    ecodes,
     evdev_to_usb_hid,
     get_mouse_movement,
     is_consumer_key,
@@ -128,20 +129,14 @@ class DeviceRelay:
         async for event in self.input_device.async_read_loop():
             await self._async_relay_event(event)
 
-    async def _async_relay_event(self, input_event: InputEvent) -> None:
-        event = categorize(input_event)
-        # _logger.debug(f"Received {event} from {self.input_device.name}")
-        func = None
-        if isinstance(event, RelEvent):
-            func = _move_mouse
-        elif isinstance(event, KeyEvent):
-            func = _send_key
-        if func:
-            func(event)
-            # await self._running_loop.run_in_executor(None, func, event)
+    async def _async_relay_event(self, event: InputEvent) -> None:
+        if event.type == ecodes.EV_REL:
+            _move_mouse(event)
+        elif event.type == ecodes.EV_KEY:
+            _send_key(event)
 
 
-def _move_mouse(event: RelEvent) -> None:
+def _move_mouse(event: InputEvent) -> None:
     if _mouse_gadget is None:
         raise RuntimeError("Mouse gadget not initialized")
     x, y, mwheel = get_mouse_movement(event)
@@ -153,7 +148,7 @@ def _move_mouse(event: RelEvent) -> None:
         _logger.exception(f"Failed moving {_mouse_gadget} {coordinates}")
 
 
-def _send_key(event: KeyEvent) -> None:
+def _send_key(event: InputEvent) -> None:
     key_id, key_name = evdev_to_usb_hid(event)
     if key_id is None or key_name is None:
         return
@@ -161,17 +156,17 @@ def _send_key(event: KeyEvent) -> None:
     if device_out is None:
         raise RuntimeError("USB gadget not initialized")
     try:
-        if event.keystate == KeyEvent.key_down:
+        if event.value == KeyEvent.key_down:
             _logger.debug(f"Pressing {key_name} (0x{key_id:02X}) on {device_out}")
             device_out.press(key_id)
-        elif event.keystate == KeyEvent.key_up:
+        elif event.value == KeyEvent.key_up:
             _logger.debug(f"Releasing {key_name} (0x{key_id:02X}) on {device_out}")
             device_out.release(key_id)
     except Exception:
         _logger.exception(f"Failed sending 0x{key_id:02X} to {device_out}")
 
 
-def _get_output_device(event: KeyEvent) -> ConsumerControl | Keyboard | Mouse | None:
+def _get_output_device(event: InputEvent) -> ConsumerControl | Keyboard | Mouse | None:
     if is_consumer_key(event):
         return _consumer_gadget
     elif is_mouse_button(event):
