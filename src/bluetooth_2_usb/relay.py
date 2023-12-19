@@ -137,7 +137,8 @@ class DeviceRelay:
         elif isinstance(event, KeyEvent):
             func = _send_key
         if func:
-            await self._running_loop.run_in_executor(None, func, event)
+            func(event)
+            # await self._running_loop.run_in_executor(None, func, event)
 
 
 def _move_mouse(event: RelEvent) -> None:
