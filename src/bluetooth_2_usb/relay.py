@@ -138,7 +138,7 @@ class DeviceRelay:
         elif event.type == ecodes.EV_KEY:
             func = _send_key
         if func:
-            await self._running_loop.run_in_executor(None, func(event))
+            await self._running_loop.run_in_executor(None, func, event)
 
 
 def _move_mouse(event: InputEvent) -> None:
