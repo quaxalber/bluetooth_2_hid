@@ -108,6 +108,7 @@ class DeviceRelay:
     def __init__(self, input_device: InputDevice, grab_device: bool = False) -> None:
         self._input_device = input_device
         self._grab_device = grab_device
+        self._running_loop = asyncio.get_running_loop()
         if grab_device:
             self._input_device.grab()
         if not all_gadgets_ready():
@@ -136,8 +137,7 @@ class DeviceRelay:
         elif isinstance(event, KeyEvent):
             func = _send_key
         if func:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, func, event)
+            await self._running_loop.run_in_executor(None, func, event)
 
 
 def _move_mouse(event: RelEvent) -> None:
