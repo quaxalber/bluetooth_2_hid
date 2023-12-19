@@ -130,11 +130,12 @@ class DeviceRelay:
             await self._async_relay_event(event)
 
     async def _async_relay_event(self, event: InputEvent) -> None:
-        _logger.debug(f"Received {event} from {self.input_device.name}")
+        categorized_event = categorize(event)
+        _logger.debug(f"Received {categorized_event} from {self.input_device.name}")
         func = None
-        if isinstance(event, RelEvent):
+        if event.type == ecodes.EV_REL:
             func = _move_mouse
-        elif isinstance(event, KeyEvent):
+        elif event.type == ecodes.EV_KEY:
             func = _send_key
         if func:
             await self._running_loop.run_in_executor(None, func(event))
