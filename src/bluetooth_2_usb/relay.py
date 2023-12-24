@@ -6,7 +6,7 @@ from typing import AsyncGenerator, NoReturn, Optional
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.mouse import Mouse
-from evdev import InputDevice, InputEvent, KeyEvent, RelEvent, categorize, list_devices
+from evdev import InputDevice, InputEvent, KeyEvent, list_devices
 import usb_hid
 from usb_hid import Device
 
@@ -27,6 +27,8 @@ _consumer_gadget: Optional[ConsumerControl] = None
 PATH = "path"
 MAC = "MAC"
 NAME = "name"
+PATH_REGEX = r"^\/dev\/input\/event.*$"
+MAC_REGEX = r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$"
 
 
 async def async_list_input_devices() -> list[InputDevice]:
@@ -87,26 +89,24 @@ class DeviceIdentifier:
         return f"{self.__class__.__name__}({self.value})"
 
     def _determine_identifier_type(self) -> str:
-        mac_regex = r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$"
-        path_regex = r"^\/dev\/input\/event.*$"
-        if re.match(mac_regex, self.value):
-            return MAC
-        if re.match(path_regex, self.value):
+        if re.match(PATH_REGEX, self.value):
             return PATH
+        if re.match(MAC_REGEX, self.value):
+            return MAC
         return NAME
 
     def _normalize_identifier(self) -> str:
-        if self.type == MAC:
-            return self.value.lower().replace("-", ":")
         if self.type == PATH:
             return self.value
+        if self.type == MAC:
+            return self.value.lower().replace("-", ":")
         return self.value.lower()
 
     def matches(self, device: InputDevice) -> bool:
-        if self.type == MAC:
-            return self.normalized_value == device.uniq
         if self.type == PATH:
             return self.value == device.path
+        if self.type == MAC:
+            return self.normalized_value == device.uniq
         return self.normalized_value in device.name.lower()
 
 
