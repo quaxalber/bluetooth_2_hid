@@ -6,7 +6,7 @@ from typing import AsyncGenerator, NoReturn, Optional
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.mouse import Mouse
-from evdev import InputDevice, InputEvent, KeyEvent, list_devices
+from evdev import InputDevice, InputEvent, KeyEvent, RelEvent, categorize, list_devices
 import usb_hid
 from usb_hid import Device
 
