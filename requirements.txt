@@ -10,3 +10,5 @@ quax-circuitpython-hid==6.0.2.post1
 rpi-ws281x==5.0.0
 RPi.GPIO==0.7.1
 sysv-ipc==1.1.0
+dbus-next==0.2.3
+bless==0.2.5
