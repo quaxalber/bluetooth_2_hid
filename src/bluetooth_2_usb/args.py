@@ -202,10 +202,6 @@ class Arguments:
     def version(self) -> bool:
         return self._version
 
-    @property
-    def version(self) -> bool:
-        return self._version
-
     def __str__(self) -> str:
         slot_values = [f"{slot[1:]}={getattr(self, slot)}" for slot in self.__slots__]
         return ", ".join(slot_values)
