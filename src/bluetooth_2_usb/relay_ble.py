@@ -57,8 +57,8 @@ for key in _AddCustomGattCharacteristicsFlagsEnum:
 _logger = get_logger()
 
 GATT_SERVER_NAME = f"Bluetooth 2 USB"
-GATT_SERVICE_ID = "00000000-711d-46f4-a34a-f4830f3c582c3"
-GATT_CHARACTERISTIC_ID = "00000001-711d-46f4-a34a-f4830f3c582c3"
+GATT_SERVICE_ID = "00000000-6907-4437-8539-9218a9d54e29"
+GATT_CHARACTERISTIC_ID = "00000001-6907-4437-8539-9218a9d54e29"
 
 
 class BleRelay:
@@ -76,7 +76,7 @@ class BleRelay:
     def __str__(self) -> str:
         return "BLE TO HID relay"
 
-    async def async_relay_ble_events_loop(self) -> NoReturn:
+    async def async_relay_events_loop(self) -> NoReturn:
         # Instantiate the server
         gatt: Dict = {
             GATT_SERVICE_ID: {

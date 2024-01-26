@@ -55,7 +55,6 @@ class CustomArgumentParser(argparse.ArgumentParser):
         )
         self.add_argument(
             "--no-ble-relay",
-            "-l",
             action="store_true",
             default=False,
             help="Disable BLE relay mode (sends GATT characteristic input to USB HID device)\nDefault: input relay enabled.",

@@ -72,7 +72,6 @@ class ShortcutParser:
         "SLASH": Keycode.FORWARD_SLASH,
         "CAPSLOCK": Keycode.CAPS_LOCK,
         "SCROLLLOCK": Keycode.SCROLL_LOCK,
-        "NUMLOCK": Keycode.NUM_LOCK,
         "PAGEUP": Keycode.PAGE_UP,
         "PAGEDOWN": Keycode.PAGE_DOWN,
         "COMPOSE": Keycode.APPLICATION,
