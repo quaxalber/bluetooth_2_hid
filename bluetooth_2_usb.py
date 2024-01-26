@@ -50,12 +50,19 @@ async def main() -> NoReturn:
     logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
-    #controller = RelayController(args.device_ids, args.auto_discover, args.grab_devices)
-    controler2 = RelayBleController()
-    await asyncio.gather(
-        #controller.async_relay_devices(),
-        controler2.async_relay_ble(),
-    )
+    tasks = []
+    if args.no_input_relay & args.no_ble_relay:
+        raise RuntimeError("Both input and BLE realys are disabled.")
+
+    if not args.no_input_relay:
+        input_controller = RelayController(args.device_ids, args.auto_discover, args.grab_devices)
+        tasks.append(input_controller.async_relay_devices())
+
+    if not args.no_ble_relay:
+        ble_controller = RelayBleController(args.partial_parse_ble_command)
+        tasks.append(ble_controller.async_relay_ble())
+
+    await asyncio.gather(*tasks)
 
 async def async_list_devices():
     for dev in await async_list_input_devices():
