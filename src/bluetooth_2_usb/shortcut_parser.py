@@ -135,7 +135,7 @@ class ShortcutParser:
     # Raises an ValueError if raise_error is on and command cannot be parsed
     def parse_command(self, shortcut_command: str, raise_error: bool = False) -> list[ParsedShortcut]:
         shortcuts = []
-        for shortcut_candidate in self._command_split_regex.split(shortcut_command):
+        for shortcut_candidate in map(str.upper, self._command_split_regex.split(shortcut_command)):
             try:
                 shortcut = self.parse_shortcut(shortcut_candidate, raise_error)
                 if shortcut:
