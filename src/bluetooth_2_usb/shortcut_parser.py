@@ -89,10 +89,10 @@ class ShortcutParser:
     }
 
     # Used to split shortcut to series of keycodes
-    _shortcut_split_regex = re.compile("[-+]+")
+    _shortcut_split_regex = re.compile(r'[-+]+')
 
     # Used to split shortcut_command to individual shortcuts
-    _command_split_regex = re.compile("([,;]|\\s)+")
+    _command_split_regex = re.compile(r'([,;]|\s)+')
 
     def __init__(self) -> None:
         # Used to map key name to Keycode
