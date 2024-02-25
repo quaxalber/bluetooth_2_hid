@@ -89,7 +89,7 @@ class ShortcutParser:
     }
 
     # Used to split shortcut_command to individual shortcuts
-    _command_split_regex = re.compile(r'[,;\s]')
+    _command_split_regex = re.compile(r'[,;\s]+')
 
     # Used to split shortcut to series of keycodes
     _shortcut_split_regex = re.compile(r'[-+]+')
