@@ -88,11 +88,11 @@ class ShortcutParser:
         "RMETA": Keycode.RIGHT_GUI,
     }
 
+    # Used to split shortcut_command to individual shortcuts
+    _command_split_regex = re.compile(r'[,;\s]')
+
     # Used to split shortcut to series of keycodes
     _shortcut_split_regex = re.compile(r'[-+]+')
-
-    # Used to split shortcut_command to individual shortcuts
-    _command_split_regex = re.compile(r'([,;]|\s)+')
 
     def __init__(self) -> None:
         # Used to map key name to Keycode
@@ -116,6 +116,19 @@ class ShortcutParser:
             keycode = self._additional_keycode_aliases[alias]
             self._key_codes[alias] = keycode
 
+    # Accepts a command (string representation of multiple schortcuts) and returns a list of schortcuts for it
+    # Raises an ValueError if raise_error is on and command cannot be parsed
+    def parse_command(self, shortcut_command: str, raise_error: bool = False) -> list[ParsedShortcut]:
+        shortcuts = []
+        for shortcut_candidate in map(str.upper, self._command_split_regex.split(shortcut_command)):
+            try:
+                shortcut = self.parse_shortcut(shortcut_candidate, raise_error)
+                if shortcut:
+                    shortcuts.append(shortcut)
+            except ValueError as ex:
+                raise ValueError(f"Cannot parse command {shortcut_command}: {ex.args[0]}")
+        return shortcuts
+
     # Parses shortcut. On failure returns None or raises an ValueError depending on raise_error
     def parse_shortcut(self, shortcut: str, raise_error: bool = False) -> ParsedShortcut | None:
         keycodes = []
@@ -130,16 +143,3 @@ class ShortcutParser:
         if not keycodes:
             return None
         return ParsedShortcut(keycodes, "-".join(keynames))
-
-    # Accepts a command (string representation of multiple schortcuts) and returns a list of schortcuts for it
-    # Raises an ValueError if raise_error is on and command cannot be parsed
-    def parse_command(self, shortcut_command: str, raise_error: bool = False) -> list[ParsedShortcut]:
-        shortcuts = []
-        for shortcut_candidate in map(str.upper, self._command_split_regex.split(shortcut_command)):
-            try:
-                shortcut = self.parse_shortcut(shortcut_candidate, raise_error)
-                if shortcut:
-                    shortcuts.append(shortcut)
-            except ValueError as ex:
-                raise ValueError(f"Cannot parse command {shortcut_command}: {ex.args[0]}")
-        return shortcuts
