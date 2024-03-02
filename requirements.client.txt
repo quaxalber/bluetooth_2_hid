@@ -1,0 +1,3 @@
+quax-circuitpython-hid==6.0.2.post1
+bleak==0.21.1
+parameterized==0.9.0

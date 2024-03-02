@@ -2,22 +2,29 @@ import re
 from typing import Dict
 from adafruit_hid.keycode import Keycode
 
-
 # Pair of shortcut (keycode combination) and formatted shortcut description
 class ParsedShortcut:
     def __init__(self, keycodes: list[int], description: str):
-        self.keycodes = keycodes
-        self.description = description
+        self._keycodes = keycodes
+        self._description = description
+
+    @property
+    def keycodes(self) -> list[int]:
+        return self._keycodes
+
+    @property
+    def description(self) -> str:
+        return self._description
 
     @property
     def is_empty(self) -> bool:
-        return len(self.keycodes) == 0
+        return len(self._keycodes) == 0
 
     def __str__(self) -> str:
-        return self.description
+        return self._description
 
     def __repr__(self) -> str:
-        return self.description
+        return self._description
 
 
 # Performs shortcut parsing
@@ -118,9 +125,9 @@ class ShortcutParser:
 
     # Accepts a command (string representation of multiple schortcuts) and returns a list of schortcuts for it
     # Raises an ValueError if raise_error is on and command cannot be parsed
-    def parse_command(self, shortcut_command: str, raise_error: bool = False) -> list[ParsedShortcut]:
+    def parse_command(self, shortcut_command: str, raise_error: bool = True) -> list[ParsedShortcut]:
         shortcuts = []
-        for shortcut_candidate in map(str.upper, self._command_split_regex.split(shortcut_command)):
+        for shortcut_candidate in self._command_split_regex.split(shortcut_command):
             try:
                 shortcut = self.parse_shortcut(shortcut_candidate, raise_error)
                 if shortcut:
@@ -130,14 +137,16 @@ class ShortcutParser:
         return shortcuts
 
     # Parses shortcut. On failure returns None or raises an ValueError depending on raise_error
-    def parse_shortcut(self, shortcut: str, raise_error: bool = False) -> ParsedShortcut | None:
+    def parse_shortcut(self, shortcut: str, raise_error: bool = True) -> ParsedShortcut | None:
         keycodes = []
         keynames = []
-        for key_candidate in self._shortcut_split_regex.split(shortcut):
+        for key_candidate in map(str.upper, self._shortcut_split_regex.split(shortcut)):
             if key_candidate in self._key_codes:
                 keycode = self._key_codes[key_candidate]
                 keycodes.append(keycode)
-                keynames.append(self._key_names[keycode])
+
+                keyname = self._key_names[keycode]
+                keynames.append(keyname.capitalize())
             elif raise_error:
                 raise ValueError(f"Unknown key {key_candidate} in shortcut {shortcut}")
         if not keycodes:
