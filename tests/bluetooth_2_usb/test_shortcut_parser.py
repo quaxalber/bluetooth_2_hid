@@ -38,6 +38,7 @@ from parameterized import parameterized
 from adafruit_hid.keycode import Keycode
 from src.bluetooth_2_usb.shortcut_parser import ShortcutParser, ParsedShortcut
 
+
 class TestShortcutParser(unittest.TestCase):
 
     @parameterized.expand([
@@ -56,7 +57,6 @@ class TestShortcutParser(unittest.TestCase):
         self.assertEqual(shortcut.keycodes, expected_keycodes)
         self.assertEqual(shortcut.description, expected_description)
 
-
     @parameterized.expand([
             ('A', [[Keycode.A]], ["A"]),
             ('A B', [[Keycode.A], [Keycode.B]], ["A", "B"]),
@@ -74,27 +74,16 @@ class TestShortcutParser(unittest.TestCase):
             self.assertEqual(shortcuts[i].keycodes, expected_keycodes[i])
             self.assertEqual(shortcuts[i].description, expected_description[i])
 
-
     @parameterized.expand([
-            ('WWW', None, None),
-            ('A+B=C', [Keycode.A], "A"),
-            ('control-aaaa', [Keycode.CONTROL], "Ctrl"),
-            ('me-me-me-2', [Keycode.TWO], "2")
+            ('WWW'),
+            ('A+B=C'),
+            ('control-aaaa'),
+            ('me-me-me-2')
         ])
-    def test_parse_bad_shortcut_silent(self, input: str, expected_keycodes: list[int], expected_description: str):
+    def test_parse_bad_shortcut_silent(self, input: str):
         parser = ShortcutParser()
         shortcut = parser.parse_shortcut(input, raise_error=False)
-
-        if (expected_keycodes is None):
-            self.assertIsNone(shortcut)
-        else:
-            self.assertEqual(shortcut.keycodes, expected_keycodes)
-
-        if (expected_description is None):
-            self.assertIsNone(shortcut)
-        else:
-            self.assertEqual(shortcut.description, expected_description)
-
+        self.assertIsNone(shortcut)
 
     @parameterized.expand([
             ('WWW'),
@@ -106,12 +95,11 @@ class TestShortcutParser(unittest.TestCase):
         parser = ShortcutParser()
         self.assertRaises(ValueError, parser.parse_shortcut, input, True)
 
-
     @parameterized.expand([
             ('AA', [], []),
             ('control=ins; Del', [[Keycode.DELETE]], ["Del"]),
             ('H: I Shift-ONE', [[Keycode.I], [Keycode.SHIFT, Keycode.ONE]], ["I", "Shift-1"]),
-            ('Ctrl+Aa,Delet', [[Keycode.CONTROL]], ["Ctrl"])
+            ('Ctrl+Aa,Delet', [], [])
         ])
     def test_parse_bad_command_silent(self, input: str, expected_keycodes: list[list[int]], expected_description: list[str]):
         parser = ShortcutParser()
@@ -119,7 +107,6 @@ class TestShortcutParser(unittest.TestCase):
         for i in range(0, len(shortcuts)):
             self.assertEqual(shortcuts[i].keycodes, expected_keycodes[i])
             self.assertEqual(shortcuts[i].description, expected_description[i])
-
 
     @parameterized.expand([
             ('AA'),
