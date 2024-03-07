@@ -75,22 +75,22 @@ Follow these steps to install and configure the project:
 ### 3.1. Prerequisites
 
 1. Install Raspberry Pi OS on your Raspberry Pi (e.g., using [Pi Imager](https://youtu.be/ntaXWS8Lk34))
-  
+
 2. Connect to a network via Ethernet cable or [Wi-Fi](https://www.raspberrypi.com/documentation/computers/configuration.html#configuring-networking). Make sure this network has Internet access.
-  
+
 3. (*optional, recommended*) Enable [SSH](https://www.raspberrypi.com/documentation/computers/remote-access.html#ssh), if you intend to access the Pi remotely.
 
 > [!NOTE]
 > These settings above may be configured [during imaging](https://www.raspberrypi.com/documentation/computers/getting-started.html#advanced-options) (recommended), [on first boot](https://www.raspberrypi.com/documentation/computers/getting-started.html#configuration-on-first-boot) or [afterwards](https://www.raspberrypi.com/documentation/computers/configuration.html).
-  
+
 4. Connect to the Pi and make sure `git` is installed:
-  
+
    ```console
    sudo apt update && sudo apt upgrade -y && sudo apt install -y git
    ```
 
 5. Pair and trust any Bluetooth devices you wish to relay, either via GUI or via CLI:
-  
+
    ```console
    bluetoothctl
    scan on
@@ -110,25 +110,25 @@ Follow these steps to install and configure the project:
 ### 3.2. Setup
 
 6. On the Pi, clone the repository to your home directory:
-  
+
    ```console
    cd ~ && git clone https://github.com/quaxalber/bluetooth_2_usb.git
    ```
 
 7. Run the installation script as root:
-   
+
    ```console
    sudo ~/bluetooth_2_usb/scripts/install.sh
    ```
 
 8.  Reboot:
- 
+
     ```console
     sudo reboot
-    ``` 
+    ```
 
 9.  Verify that the service is running:
-   
+
     ```console
     service bluetooth_2_usb status
     ```
@@ -157,7 +157,7 @@ Follow these steps to install and configure the project:
 
 > [!NOTE]
 > Something seems off? Try yourself in [Troubleshooting](#7-troubleshooting)!
-   
+
 ## 4. Usage
 
 ### 4.1. Connection to target device / host
@@ -234,18 +234,18 @@ sudo ~/bluetooth_2_usb/scripts/uninstall.sh
 This is likely due to the limited power the Pi can draw from the host's USB port. Try these steps:
 
 - If available, connect your Pi to a USB 3 port on the host / target device (usually blue) or preferably USB-C.
- 
+
 > [!IMPORTANT]
 > *Do not use* the blue (or black) USB-A ports *of your Pi* to connect. **This won't work.**
 >
 > *Do use* the small USB-C power port (in case of Pi 4B). For Pi Zero, use the data port to connect to the host and attach the power port to a dedicated power supply.
 
 - Try to [connect to the Pi via SSH](#31-prerequisites) instead of attaching a display directly and remove any unnecessary peripherals.
- 
+
 - Install a [lite version](https://downloads.raspberrypi.org/raspios_lite_arm64/images/) of your OS on the Pi (without GUI)
- 
+
 - For Pi 4B: Get a [USB-C Data/Power Splitter](https://thepihut.com/products/usb-c-data-power-splitter) and draw power from a dedicated power supply. This should ultimately resolve any power-related issues, and your Pi 4B will no longer be dependent on the host's power supply.
- 
+
 > [!NOTE]
 > The Pi Zero is recommended to have a 1.2 A power supply for stable operation, the Pi Zero 2 requires 2.0 A and the Pi 4B even 3.0 A, while hosts may typically only supply up to 0.5/0.9 A through USB-A 2.0/3.0 ports. However, this may be sufficient depending on your specific soft- and hardware configuration. For more information see the [Raspberry Pi documentation](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#power-supply).
 
@@ -254,20 +254,20 @@ This is likely due to the limited power the Pi can draw from the host's USB port
 This could be due to a number of reasons. Try these steps:
 
 - Verify that the service is running:
- 
+
   ```console
   service bluetooth_2_usb status
   ```
 
 - Verify that you specified the correct input devices in `bluetooth_2_usb.service`
- 
+
 - Verify that your Bluetooth devices are paired, trusted, connected and *not* blocked:
- 
+
   ```console
   bluetoothctl
   info A1:B2:C3:D4:E5:F6
   ```
- 
+
   It should look like this:
 
   ```console
@@ -290,26 +290,26 @@ This could be due to a number of reasons. Try these steps:
           UUID: Human Interface Device    (00001812-0000-1000-8000-00805f9b34fb)
           UUID: Nordic UART Service       (6e400001-b5a3-f393-e0a9-e50e24dcca9e)
   ```
- 
+
 > [!NOTE]
 > Replace `A1:B2:C3:D4:E5:F6` by your input device's Bluetooth MAC address
 
 - Reload and restart service:
- 
+
   ```console
   sudo systemctl daemon-reload && sudo service bluetooth_2_usb restart
   ```
 
 - Reboot Pi
- 
+
   ```console
   sudo reboot
   ```
 
 - Re-connect the Pi to the host and check that the cable is capable of transmitting data, not power only
- 
+
 - Try a different USB port on the host
- 
+
 - Try connecting to a different host
 
 ### 7.3. In bluetoothctl, my device is constantly switching on/off
@@ -345,12 +345,12 @@ exit
 Here's a few things you could try:
 
 - Check the log files (default at `/var/log/bluetooth_2_usb/`) for errors
- 
+
 > [!NOTE]
 > Logging to file requires the `-f` flag
 
 - You may also query the journal to inspect the service logs in real-time:
- 
+
   ```console
   journalctl -u bluetooth_2_usb.service -n 50 -f
   ```
@@ -421,7 +421,7 @@ Here's a few things you could try:
   ```
 
 - Still not resolved? Double-check the [installation instructions](#3-installation)
- 
+
 - For more help, open an [issue](https://github.com/quaxalber/bluetooth_2_usb/issues) in the [GitHub repository](https://github.com/quaxalber/bluetooth_2_usb)
 
 ### 7.5. Everything is working, but can it help me with Bitcoin mining?
@@ -450,3 +450,16 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 * [Georgi Valkov](https://github.com/gvalkov) for [python-evdev](https://github.com/gvalkov/python-evdev) making reading input devices a walk in the park.
 * The folks at [Adafruit](https://www.adafruit.com/) for [CircuitPython HID](https://github.com/adafruit/Adafruit_CircuitPython_HID) and [Blinka](https://github.com/quaxalber/Adafruit_Blinka/blob/main/src/usb_hid.py) providing super smooth access to USB gadgets.
 * Special thanks to the open-source community for various other libraries and tools.
+
+
+## BLE GATT
+
+TBD
+
+Example:
+```
+> 'src/gatt_client/client.py' '-a' 'B8:27:EB:9C:F6:4C' '-c' '00000001-6907-4437-8539-9218a9d54e29' 'Alt-Tab'
+Connected to B8:27:EB:9C:F6:4C: True
+Writing value 'Alt-Tab'
+Value 'Alt-Tab' written to characteristic 00000001-6907-4437-8539-9218a9d54e29
+```
