@@ -29,6 +29,7 @@ class CustomArgumentParser(argparse.ArgumentParser):
             type=str,
             help="Value to be written to the target characteristic. The value will be passed as an UTF-8 string")
 
+
 class Arguments:
 
     def __init__(
@@ -53,6 +54,7 @@ class Arguments:
     def value(self) -> str:
         return self._value
 
+
 def parse_args() -> Arguments:
     x = sys.argv
     parser = CustomArgumentParser()
@@ -67,12 +69,14 @@ def parse_args() -> Arguments:
         characteristic=args.characteristic,
         value=args.value)
 
+
 async def main(address: str, characteristic: UUID, value: str):
     async with BleakClient(address) as client:
         print(f"Connected to {address}: {client.is_connected}")
         print(f"Writing value '{value}'")
         await client.write_gatt_char(characteristic, value.encode(encoding = 'UTF-8', errors = 'strict'), response=False)
         print(f"Value '{value}' written to characteristic {characteristic}")
+
 
 if __name__ == "__main__":
     args = parse_args()
