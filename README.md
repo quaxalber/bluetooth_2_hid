@@ -16,36 +16,36 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
 <!-- omit in toc -->
 ## Table of Contents
 
-- [Bluetooth to USB](#bluetooth-to-usb)
-  - [1. Features](#1-features)
-  - [2. Requirements](#2-requirements)
-  - [3. Installation](#3-installation)
-    - [3.1. Prerequisites](#31-prerequisites)
-    - [3.2. Setup](#32-setup)
-    - [3.3. Known issues](#33-known-issues)
-  - [4. Usage](#4-usage)
-    - [4.1. Connection to target device / host](#41-connection-to-target-device--host)
-      - [4.1.1. Raspberry Pi 4 Model B](#411-raspberry-pi-4-model-b)
-      - [4.1.2. Raspberry Pi Zero (2) W(H)](#412-raspberry-pi-zero-2-wh)
-    - [4.2. Command-line arguments](#42-command-line-arguments)
-    - [4.3 Bluetooth to USB GATT](#43-bluetooth-to-usb-gatt)
-      - [4.3.1 Cross-platform python client sample](#431-cross-platform-python-client-sample)
-      - [4.3.2 Windows clients](#432-windows-clients)
-    - [4.4. Consuming the API from your Python code](#44-consuming-the-api-from-your-python-code)
-  - [5. Updating](#5-updating)
-  - [6. Uninstallation](#6-uninstallation)
-  - [7. Troubleshooting](#7-troubleshooting)
-    - [7.1. The Pi keeps rebooting or crashes randomly](#71-the-pi-keeps-rebooting-or-crashes-randomly)
-    - [7.2. The installation was successful, but I don't see any output on the target device](#72-the-installation-was-successful-but-i-dont-see-any-output-on-the-target-device)
-    - [7.3. In bluetoothctl, my device is constantly switching on/off](#73-in-bluetoothctl-my-device-is-constantly-switching-onoff)
-    - [7.4. There are occansional Bluetooth disconnects on Pi Zero 2](#74-there-are-occansional-bluetooth-disconnects-on-pi-zero-2)
-    - [7.5. There are occansional Wi-Fi disconnects on Pi Zero 2](#75-there-are-occansional-wi-fi-disconnects-on-pi-zero-2)
-    - [7.6. I have a different issue](#76-i-have-a-different-issue)
-    - [7.7. Everything is working, but can it help me with Bitcoin mining?](#77-everything-is-working-but-can-it-help-me-with-bitcoin-mining)
-  - [8. Bonus points](#8-bonus-points)
-  - [9. Contributing](#9-contributing)
-  - [10. License](#10-license)
-  - [11. Acknowledgments](#11-acknowledgments)
+- [1. Features](#1-features)
+- [2. Requirements](#2-requirements)
+- [3. Installation](#3-installation)
+  - [3.1. Prerequisites](#31-prerequisites)
+  - [3.2. Setup](#32-setup)
+  - [3.3. Known issues](#33-known-issues)
+- [4. Usage](#4-usage)
+  - [4.1. Connection to target device / host](#41-connection-to-target-device--host)
+    - [4.1.1. Raspberry Pi 4 Model B](#411-raspberry-pi-4-model-b)
+    - [4.1.2. Raspberry Pi Zero (2) W(H)](#412-raspberry-pi-zero-2-wh)
+  - [4.2. Command-line arguments](#42-command-line-arguments)
+  - [4.3 Bluetooth to USB GATT](#43-bluetooth-to-usb-gatt)
+    - [4.3.1 Cross-platform python client sample](#431-cross-platform-python-client-sample)
+    - [4.3.2 Windows clients](#432-windows-clients)
+    - [4.3.3 Android clients](#433-android-clients)
+  - [4.4. Consuming the API from your Python code](#44-consuming-the-api-from-your-python-code)
+- [5. Updating](#5-updating)
+- [6. Uninstallation](#6-uninstallation)
+- [7. Troubleshooting](#7-troubleshooting)
+  - [7.1. The Pi keeps rebooting or crashes randomly](#71-the-pi-keeps-rebooting-or-crashes-randomly)
+  - [7.2. The installation was successful, but I don't see any output on the target device](#72-the-installation-was-successful-but-i-dont-see-any-output-on-the-target-device)
+  - [7.3. In bluetoothctl, my device is constantly switching on/off](#73-in-bluetoothctl-my-device-is-constantly-switching-onoff)
+  - [7.4. There are occansional Bluetooth disconnects on Pi Zero 2](#74-there-are-occansional-bluetooth-disconnects-on-pi-zero-2)
+  - [7.5. There are occansional Wi-Fi disconnects on Pi Zero 2](#75-there-are-occansional-wi-fi-disconnects-on-pi-zero-2)
+  - [7.6. I have a different issue](#76-i-have-a-different-issue)
+  - [7.7. Everything is working, but can it help me with Bitcoin mining?](#77-everything-is-working-but-can-it-help-me-with-bitcoin-mining)
+- [8. Bonus points](#8-bonus-points)
+- [9. Contributing](#9-contributing)
+- [10. License](#10-license)
+- [11. Acknowledgments](#11-acknowledgments)
 
 
 ## 1. Features
@@ -314,6 +314,11 @@ Options:
 > .\BleTools.Write.exe B8:27:EB:9C:F6:4C 00000000-6907-4437-8539-9218a9d54e29 00000001-6907-4437-8539-9218a9d54e29 Win
 Value 'Win' written to service / characteristic 00000000-6907-4437-8539-9218a9d54e29 / 00000001-6907-4437-8539-9218a9d54e29 (device B8:27:EB:9C:F6:4C).
 ```
+
+#### 4.3.3 Android clients
+Almost all BLE clients on Android uses system api and works equally fine. The ones we checked are:
+* [BlueTooth Terminal eDebugger](https://play.google.com/store/apps/details?id=com.e.debugger)
+* [nRF Connect for Mobile](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp)
 
 ### 4.4. Consuming the API from your Python code
 
