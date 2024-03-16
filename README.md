@@ -62,12 +62,13 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
 - Clean and actively maintained code base
 
 **Bluetooth LE service:**
-- Supports sending keystrokes (a series of shortcuts) remotely from your PC or phone. See (TODO) for usage guidelines.
+- Supports sending keystrokes (a series of shortcuts) remotely from your PC or phone. See [4.3 Bluetooth to USB GATT](#43-bluetooth-to-usb-gatt) for usage guidelines.
 - Accepts (almost) any format. Both Linux keycode names (see [Adaftuit keycodes](https://docs.circuitpython.org/projects/hid/en/latest/_modules/adafruit_hid/keycode.html)) and [Windows ones](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes) are supported.
   Example of input: `Win-R n,o,t,e,p,a,d Enter`
 - Works as a Bluetooth GATT Service (is compatiblle with existing BLE GATT client applications)
 - Requires client device to be paired (may be disabled by `--accept-non-trusted` command-line argument; if enabled, only whitelisted devices may send the keystrokes).
 - Returns error if invalid keystroke is sent (may be disabled by `--partial-parse-ble-command` command-line argument)
+- May be disabled using `--no-ble-relay` option
 - Tested on Raspberry Pi 4, Raspberry Pi Zero W and Raspberry Pi Zero 2 W
 
 ## 2. Requirements
@@ -256,6 +257,24 @@ The things you need to know:
 * The bluetooth address of the Pi device (may be obtained by `hcitool dev` command)
 * Names of GATT service and characteristic to use. Currently these are not configurable and are equal to `00000000-6907-4437-8539-9218a9d54e29` and `00000001-6907-4437-8539-9218a9d54e29`
 * You must pair your client device with Raspberry Pi (the pairing must be triggered on the client side). Some clients do support auto-pairing, others require you to do it manually.
+
+**Keystrokes format**
+
+TLDR example: `Win-1, F5, Alt-Tab` switches to the first app in the windows taskbar, presses F5 and switches back.
+
+Each keystroke contains one or more shortcuts. The shortcuts are separated by whitespace (` `), comma (`,`) or semicolon (`;`) symbols.
+
+Each shortcut represents a combination of keys that will be presseed simultaneously. The key names are separated by dash ('-') or plus (`+`) symbols.
+
+Key names are case sensitive. Both Linux keycode names (see [Adaftuit keycodes](https://docs.circuitpython.org/projects/hid/en/latest/_modules/adafruit_hid/keycode.html)) and [Windows ones](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes) are supported.
+
+More examples:
+```
+Ctrl-E,Ctrl-K             # Two sequental shortcuts, Ctrl-E and Ctrl-K
+Ctrl+Alt+P                # A single shortcut, Ctrl-Alt-P
+LAlt-M;RAlt-D             # Two sequental shortcuts, Left Alt-M and Right Alt-D
+Win-R n,o,t,e,p,a,d Enter # Starts a notepad app
+```
 
 #### 4.3.1 Cross-platform python client sample
 
