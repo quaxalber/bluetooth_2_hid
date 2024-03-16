@@ -59,7 +59,7 @@ async def main() -> NoReturn:
         tasks.append(input_controller.async_relay_devices())
 
     if not args.no_ble_relay:
-        ble_controller = RelayBleController(args.partial_parse_ble_command)
+        ble_controller = RelayBleController(args.accept_non_trusted, args.partial_parse_ble_command)
         tasks.append(ble_controller.async_relay_ble())
 
     await asyncio.gather(*tasks)

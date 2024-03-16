@@ -1,9 +1,8 @@
-<!-- omit in toc -->
 # Bluetooth to USB
 
 ![Bluetooth to USB Overview](https://raw.githubusercontent.com/quaxalber/bluetooth_2_usb/main/assets/overview.png)
 
-Convert a Raspberry Pi into a HID relay that translates Bluetooth keyboard and mouse input to USB. Minimal configuration. Zero hassle.
+Convert a Raspberry Pi into a HID relay that translates Bluetooth keyboard and mouse input to USB. Additionally, supports sending multiple keystrokes via Bluetooth LE service. Minimal configuration. Zero hassle.
 
 The issue with Bluetooth devices is that you usually can't use them to:
 - wake up sleeping devices,
@@ -17,32 +16,40 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
 <!-- omit in toc -->
 ## Table of Contents
 
-- [1. Features](#1-features)
-- [2. Requirements](#2-requirements)
-- [3. Installation](#3-installation)
-  - [3.1. Prerequisites](#31-prerequisites)
-  - [3.2. Setup](#32-setup)
-- [4. Usage](#4-usage)
-  - [4.1. Connection to target device / host](#41-connection-to-target-device--host)
-    - [4.1.1. Raspberry Pi 4 Model B](#411-raspberry-pi-4-model-b)
-    - [4.1.2. Raspberry Pi Zero (2) W(H)](#412-raspberry-pi-zero-2-wh)
-  - [4.2. Command-line arguments](#42-command-line-arguments)
-  - [4.3. Consuming the API from your Python code](#43-consuming-the-api-from-your-python-code)
-- [5. Updating](#5-updating)
-- [6. Uninstallation](#6-uninstallation)
-- [7. Troubleshooting](#7-troubleshooting)
-  - [7.1. The Pi keeps rebooting or crashes randomly](#71-the-pi-keeps-rebooting-or-crashes-randomly)
-  - [7.2. The installation was successful, but I don't see any output on the target device](#72-the-installation-was-successful-but-i-dont-see-any-output-on-the-target-device)
-  - [7.3. In bluetoothctl, my device is constantly switching on/off](#73-in-bluetoothctl-my-device-is-constantly-switching-onoff)
-  - [7.4. I have a different issue](#74-i-have-a-different-issue)
-  - [7.5. Everything is working, but can it help me with Bitcoin mining?](#75-everything-is-working-but-can-it-help-me-with-bitcoin-mining)
-- [8. Bonus points](#8-bonus-points)
-- [9. Contributing](#9-contributing)
-- [10. License](#10-license)
-- [11. Acknowledgments](#11-acknowledgments)
+- [Bluetooth to USB](#bluetooth-to-usb)
+  - [1. Features](#1-features)
+  - [2. Requirements](#2-requirements)
+  - [3. Installation](#3-installation)
+    - [3.1. Prerequisites](#31-prerequisites)
+    - [3.2. Setup](#32-setup)
+    - [3.3. Known issues](#33-known-issues)
+  - [4. Usage](#4-usage)
+    - [4.1. Connection to target device / host](#41-connection-to-target-device--host)
+      - [4.1.1. Raspberry Pi 4 Model B](#411-raspberry-pi-4-model-b)
+      - [4.1.2. Raspberry Pi Zero (2) W(H)](#412-raspberry-pi-zero-2-wh)
+    - [4.2. Command-line arguments](#42-command-line-arguments)
+    - [4.3. Consuming the API from your Python code](#43-consuming-the-api-from-your-python-code)
+  - [5. Updating](#5-updating)
+  - [6. Uninstallation](#6-uninstallation)
+  - [7. Troubleshooting](#7-troubleshooting)
+    - [7.1. The Pi keeps rebooting or crashes randomly](#71-the-pi-keeps-rebooting-or-crashes-randomly)
+    - [7.2. The installation was successful, but I don't see any output on the target device](#72-the-installation-was-successful-but-i-dont-see-any-output-on-the-target-device)
+    - [7.3. In bluetoothctl, my device is constantly switching on/off](#73-in-bluetoothctl-my-device-is-constantly-switching-onoff)
+    - [7.4. There are occansional Bluetooth disconnects on Pi Zero 2](#74-there-are-occansional-bluetooth-disconnects-on-pi-zero-2)
+    - [7.5. There are occansional Wi-Fi disconnects on Pi Zero 2](#75-there-are-occansional-wi-fi-disconnects-on-pi-zero-2)
+    - [7.4. I have a different issue](#74-i-have-a-different-issue)
+    - [7.5. Everything is working, but can it help me with Bitcoin mining?](#75-everything-is-working-but-can-it-help-me-with-bitcoin-mining)
+  - [8. Bonus points](#8-bonus-points)
+  - [9. Contributing](#9-contributing)
+  - [10. License](#10-license)
+  - [11. Acknowledgments](#11-acknowledgments)
+- [Bluetooth to USB GATT](#bluetooth-to-usb-gatt)
+  - [BLE GATT](#ble-gatt)
+
 
 ## 1. Features
 
+**HID relay:**
 - Simple installation and highly automated setup
 - Supports multiple input devices (currently keyboard and mouse - more than one of each kind simultaneously)
 - Supports [146 multimedia keys](https://github.com/quaxalber/bluetooth_2_usb/blob/8b1c5f8097bbdedfe4cef46e07686a1059ea2979/lib/evdev_adapter.py#L142) (e.g., mute, volume up/down, launch browser, etc.)
@@ -52,6 +59,14 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
 - Installation as a systemd service
 - Reliable concurrency using state-of-the-art [TaskGroups](https://docs.python.org/3/library/asyncio-task.html#task-groups)
 - Clean and actively maintained code base
+
+**Bluetooth LE service:**
+- Works as a Bluetooth GATT Service (is compatiblle with existing BLE GATT client applications)
+- Translates a series of keyboard keystrokes (mouse is not supported yet) into USB HID events. Input should be passed as an UTF-8 string
+- Supports both Linux keycode names (see [Adaftuit keycodes](https://docs.circuitpython.org/projects/hid/en/latest/_modules/adafruit_hid/keycode.html)) and [Windows ones](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes) (VK_profix is not used)
+- Requires client device to be paired (may be disabled by `--accept-non-trusted` command-line argument; if enabled, only whitelisted devices may send the keystrokes).
+- Returns error if invalid keystroke is sent (may be disabled by `--partial-parse-ble-command` command-line argument)
+- Tested on Raspberry Pi 4, Raspberry Pi Zero W and Raspberry Pi Zero 2 W
 
 ## 2. Requirements
 
@@ -109,25 +124,27 @@ Follow these steps to install and configure the project:
 
 ### 3.2. Setup
 
-6. On the Pi, clone the repository to your home directory:
+1. On the Pi, clone the repository to your home directory:
 
    ```console
-   cd ~ && git clone https://github.com/quaxalber/bluetooth_2_usb.git
+   # as it is for now the BLE servie feature is not complete and located at forked repo
+   # cd ~ && git clone https://github.com/quaxalber/bluetooth_2_usb.git
+   cd ~ && git clone https://github.com/ig-sinicyn/bluetooth_2_usb.git
    ```
 
-7. Run the installation script as root:
+2. Run the installation script as root:
 
    ```console
    sudo ~/bluetooth_2_usb/scripts/install.sh
    ```
 
-8.  Reboot:
+3.  Reboot:
 
     ```console
     sudo reboot
     ```
 
-9.  Verify that the service is running:
+4.  Verify that the service is running:
 
     ```console
     service bluetooth_2_usb status
@@ -157,6 +174,22 @@ Follow these steps to install and configure the project:
 
 > [!NOTE]
 > Something seems off? Try yourself in [Troubleshooting](#7-troubleshooting)!
+
+### 3.3. Known issues
+
+**No module named 'evdev' error**
+
+This error may occur on fresh Bookworm images. May be fixed with
+```
+sudo apt install python3-evdev
+```
+
+**Python.h: No such file or directory error**
+
+This error may occur on fresh Bookworm images. May be fixed with
+```
+sudo apt install libpython3.11-dev
+```
 
 ## 4. Usage
 
@@ -232,6 +265,8 @@ sudo ~/bluetooth_2_usb/scripts/uninstall.sh
 ### 7.1. The Pi keeps rebooting or crashes randomly
 
 This is likely due to the limited power the Pi can draw from the host's USB port. Try these steps:
+
+- check the output of `vcgencmd get_throttled` and `vcgencmd measure_temp` commands. The Throttled status should be `0x0` and the temperature has to be less than 80°C (on most devices average temperature is in range 40-50 °C).
 
 - If available, connect your Pi to a USB 3 port on the host / target device (usually blue) or preferably USB-C.
 
@@ -339,6 +374,36 @@ exit
 
 > [!NOTE]
 > Replace `0A:1B:2C:3D:4E:5F` by your Pi's Bluetooth controller's MAC and `A1:B2:C3:D4:E5:F6` by your input device's MAC
+
+### 7.4. There are occansional Bluetooth disconnects on Pi Zero 2
+
+Please check that you're not usig full-size metal case or cover. These are known to reduce Bluetooth connectivity range. If so, try to place your client device clother to the RPi.
+
+Also, please check that you're use proper power source for your device (as in [7.1 section]()). Raspberry Pi is known to have connectivity issues when underpowered.
+
+### 7.5. There are occansional Wi-Fi disconnects on Pi Zero 2
+
+There's a known issue with fresh Bookworm images on Raspberry Pi 2. Sometimes the device does not respond to incoming network requests sent via Wi-Fi.
+
+For this issue, try to disable power_save mode for the wlan0 as suggested [here](https://forums.raspberrypi.com/viewtopic.php?p=2024045&sid=41607aa3904668e8120e9188a29c474c#p2024045).
+
+**Occansional bluetooth disconnects**
+
+At first, please check that you're not usig full-size metal case or cover. These are known to reduce Bluetooth connectivity range. If so, try to place your client device clother to the RPi.
+
+Also, please check that you're use proper power source for your device. Raspberry Pi is known to have connectivity issues when underpowered.
+
+There are some messages about connectivity issues ([as example](https://askubuntu.com/questions/1264315/bluetooth-keyboard-and-mouse-disconnect-when-idle-for-a-few-seconds-and-reconnec)) but I was not able to reproduce any of them.
+
+**Bluetooth reconnects takes too long**
+Try to set
+```
+FastConnectable = true
+```
+in the `/etc/bluetooth/main.conf`.
+
+> [!NOTE]
+> Enabling the FastConnectable option increases power consumption for the device.
 
 ### 7.4. I have a different issue
 
@@ -451,6 +516,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 * The folks at [Adafruit](https://www.adafruit.com/) for [CircuitPython HID](https://github.com/adafruit/Adafruit_CircuitPython_HID) and [Blinka](https://github.com/quaxalber/Adafruit_Blinka/blob/main/src/usb_hid.py) providing super smooth access to USB gadgets.
 * Special thanks to the open-source community for various other libraries and tools.
 
+# Bluetooth to USB GATT
 
 ## BLE GATT
 

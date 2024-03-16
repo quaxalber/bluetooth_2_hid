@@ -60,6 +60,12 @@ class CustomArgumentParser(argparse.ArgumentParser):
             help="Disable BLE relay mode (sends GATT characteristic input to USB HID device)\nDefault: input relay enabled.",
         )
         self.add_argument(
+            "--accept-non-trusted",
+            action="store_true",
+            default=False,
+            help="UNSAFE! Accepts non-trusted BLE relay clients.",
+        )
+        self.add_argument(
             "--partial-parse-ble-command",
             action="store_true",
             default=False,
@@ -124,6 +130,7 @@ class Arguments:
         "_list_devices",
         "_no_input_relay",
         "_no_ble_relay",
+        "_accept_non_trusted",
         "_partial_parse_ble_command",
         "_log_to_file",
         "_log_path",
@@ -139,6 +146,7 @@ class Arguments:
         list_devices: bool,
         no_input_relay: bool,
         no_ble_relay: bool,
+        accept_non_trusted: bool,
         partial_parse_ble_command: bool,
         log_to_file: bool,
         log_path: str,
@@ -151,6 +159,7 @@ class Arguments:
         self._list_devices = list_devices
         self._no_input_relay = no_input_relay
         self._no_ble_relay = no_ble_relay
+        self._accept_non_trusted = accept_non_trusted
         self._partial_parse_ble_command = partial_parse_ble_command
         self._log_to_file = log_to_file
         self._log_path = log_path
@@ -180,6 +189,10 @@ class Arguments:
     @property
     def no_ble_relay(self) -> bool:
         return self._no_ble_relay
+
+    @property
+    def accept_non_trusted(self) -> bool:
+        return self._accept_non_trusted
 
     @property
     def partial_parse_ble_command(self) -> bool:
@@ -223,6 +236,7 @@ def parse_args() -> Arguments:
         list_devices=args.list_devices,
         no_input_relay=args.no_input_relay,
         no_ble_relay=args.no_ble_relay,
+        accept_non_trusted=args.accept_non_trusted,
         partial_parse_ble_command=args.partial_parse_ble_command,
         log_to_file=args.log_to_file,
         log_path=args.log_path,

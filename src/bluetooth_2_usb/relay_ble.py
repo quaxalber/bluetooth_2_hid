@@ -65,8 +65,10 @@ class BleRelay:
 
     def __init__(
             self,
+            accept_non_trusted: bool = False,
             partial_parse: bool = False) -> None:
-        self.partial_parse = partial_parse
+        self._accept_non_trusted = accept_non_trusted
+        self._partial_parse = partial_parse
         self._shortcut_parser = ShortcutParser()
         if not all_gadgets_ready():
             init_usb_gadgets()
@@ -77,21 +79,26 @@ class BleRelay:
         return "BLE TO HID relay"
 
     async def async_relay_events_loop(self) -> NoReturn:
+        gatt_properties = (CustomGATTCharacteristicProperties.encrypt_authenticated_read
+            | CustomGATTCharacteristicProperties.encrypt_authenticated_write)
+        gatt_permissions = (GATTAttributePermissions.read_encryption_required
+            | GATTAttributePermissions.write_encryption_required)
+
+        if (self._accept_non_trusted):
+            gatt_properties =  CustomGATTCharacteristicProperties.read | CustomGATTCharacteristicProperties.write
+            gatt_permissions = GATTAttributePermissions.readable | GATTAttributePermissions.writeable
+
         # Instantiate the server
         gatt: Dict = {
             GATT_SERVICE_ID: {
                 GATT_CHARACTERISTIC_ID: {
-                    "Properties": (
-                                    CustomGATTCharacteristicProperties.encrypt_authenticated_read |
-                                    CustomGATTCharacteristicProperties.encrypt_authenticated_write),
-                    "Permissions": (
-                                    GATTAttributePermissions.read_encryption_required |
-                                    GATTAttributePermissions.write_encryption_required),
+                    "Properties": gatt_properties,
+                    "Permissions": gatt_permissions,
                     "Value": None
                 },
             }
         }
-        server = BlessServer(name=GATT_SERVER_NAME, name_overwrite=True)
+        server = BlessServer(name=GATT_SERVER_NAME)
         server.read_request_func = self._read_request
         server.write_request_func = self._write_request
 
@@ -128,7 +135,7 @@ class BleRelay:
             raise RuntimeError(f"Invalid characteristic {characteristic}")
         input = value.decode()
         _logger.debug(f"Received input {input} for {characteristic}")
-        parsed_input = self._shortcut_parser.parse_command(input, raise_error=not self.partial_parse)
+        parsed_input = self._shortcut_parser.parse_command(input, raise_error=not self._partial_parse)
         if len (parsed_input) == 0:
             _logger.debug(f"invalid input received. Ignoring")
             return
@@ -148,14 +155,16 @@ class RelayBleController:
 
     def __init__(
             self,
+            accept_non_trusted: bool = False,
             partial_parse: bool = False) -> None:
-        self.partial_parse = partial_parse
+        self._partial_parse = partial_parse
+        self._accept_non_trusted = accept_non_trusted
 
     async def async_relay_ble(self) -> NoReturn:
         try:
-            relay = BleRelay(self.partial_parse)
-            _logger.info(f"Activated {relay}. Ignores invalid input: {self.partial_parse}")
-            _logger.info(f"Use {GATT_SERVICE_ID} service / {GATT_CHARACTERISTIC_ID} characteristic to write the value. You need to pair your client device first.")
+            relay = BleRelay(self._accept_non_trusted, self._partial_parse)
+            _logger.info(f"Activated {relay}. Pairing required: {not self._accept_non_trusted}. Allows invalid input: {self._partial_parse}")
+            _logger.info(f"Use {GATT_SERVICE_ID} service / {GATT_CHARACTERISTIC_ID} characteristic to send keystrokes.")
             await relay.async_relay_events_loop()
         except* Exception:
             _logger.exception("Error(s) in relay")

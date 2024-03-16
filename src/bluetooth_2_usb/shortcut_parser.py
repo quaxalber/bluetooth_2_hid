@@ -139,7 +139,7 @@ class ShortcutParser:
 
         A shortcut is combination of one or more keycodes splitted by '-' or '+' separators.
         Keycodes are case-insensitive and accepts values from adafruit_hid.keycode.Keycode enum
-        as well as Windows Virtual-Key Codes names (https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes, 'VK_' prefix should be trimmed)
+        as well as Windows Virtual-Key Codes names (https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes, 'VK_' prefix should be removed)
 
         Ignores invalid keycodes if raise_error arg is set to False (default: True).
 
