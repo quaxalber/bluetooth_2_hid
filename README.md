@@ -2,7 +2,7 @@
 
 ![Bluetooth to USB Overview](https://raw.githubusercontent.com/quaxalber/bluetooth_2_usb/main/assets/overview.png)
 
-Convert a Raspberry Pi into a HID relay that translates Bluetooth keyboard and mouse input to USB. Additionally, supports sending multiple keystrokes via Bluetooth LE service. Minimal configuration. Zero hassle.
+Convert a Raspberry Pi into a HID relay that translates Bluetooth keyboard and mouse input to USB. Additionally, supports sending keystrokes remotely from your PC or phone via Bluetooth LE service. Minimal configuration. Zero hassle.
 
 The issue with Bluetooth devices is that you usually can't use them to:
 - wake up sleeping devices,
@@ -28,7 +28,10 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
       - [4.1.1. Raspberry Pi 4 Model B](#411-raspberry-pi-4-model-b)
       - [4.1.2. Raspberry Pi Zero (2) W(H)](#412-raspberry-pi-zero-2-wh)
     - [4.2. Command-line arguments](#42-command-line-arguments)
-    - [4.3. Consuming the API from your Python code](#43-consuming-the-api-from-your-python-code)
+    - [4.3 Bluetooth to USB GATT](#43-bluetooth-to-usb-gatt)
+      - [4.3.1 Cross-platform python client sample](#431-cross-platform-python-client-sample)
+      - [4.3.2 Windows clients](#432-windows-clients)
+    - [4.4. Consuming the API from your Python code](#44-consuming-the-api-from-your-python-code)
   - [5. Updating](#5-updating)
   - [6. Uninstallation](#6-uninstallation)
   - [7. Troubleshooting](#7-troubleshooting)
@@ -37,14 +40,12 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
     - [7.3. In bluetoothctl, my device is constantly switching on/off](#73-in-bluetoothctl-my-device-is-constantly-switching-onoff)
     - [7.4. There are occansional Bluetooth disconnects on Pi Zero 2](#74-there-are-occansional-bluetooth-disconnects-on-pi-zero-2)
     - [7.5. There are occansional Wi-Fi disconnects on Pi Zero 2](#75-there-are-occansional-wi-fi-disconnects-on-pi-zero-2)
-    - [7.4. I have a different issue](#74-i-have-a-different-issue)
-    - [7.5. Everything is working, but can it help me with Bitcoin mining?](#75-everything-is-working-but-can-it-help-me-with-bitcoin-mining)
+    - [7.6. I have a different issue](#76-i-have-a-different-issue)
+    - [7.7. Everything is working, but can it help me with Bitcoin mining?](#77-everything-is-working-but-can-it-help-me-with-bitcoin-mining)
   - [8. Bonus points](#8-bonus-points)
   - [9. Contributing](#9-contributing)
   - [10. License](#10-license)
   - [11. Acknowledgments](#11-acknowledgments)
-- [Bluetooth to USB GATT](#bluetooth-to-usb-gatt)
-  - [BLE GATT](#ble-gatt)
 
 
 ## 1. Features
@@ -61,9 +62,10 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
 - Clean and actively maintained code base
 
 **Bluetooth LE service:**
+- Supports sending keystrokes (a series of shortcuts) remotely from your PC or phone. See (TODO) for usage guidelines.
+- Accepts (almost) any format. Both Linux keycode names (see [Adaftuit keycodes](https://docs.circuitpython.org/projects/hid/en/latest/_modules/adafruit_hid/keycode.html)) and [Windows ones](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes) are supported.
+  Example of input: `Win-R n,o,t,e,p,a,d Enter`
 - Works as a Bluetooth GATT Service (is compatiblle with existing BLE GATT client applications)
-- Translates a series of keyboard keystrokes (mouse is not supported yet) into USB HID events. Input should be passed as an UTF-8 string
-- Supports both Linux keycode names (see [Adaftuit keycodes](https://docs.circuitpython.org/projects/hid/en/latest/_modules/adafruit_hid/keycode.html)) and [Windows ones](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes) (VK_profix is not used)
 - Requires client device to be paired (may be disabled by `--accept-non-trusted` command-line argument; if enabled, only whitelisted devices may send the keystrokes).
 - Returns error if invalid keystroke is sent (may be disabled by `--partial-parse-ble-command` command-line argument)
 - Tested on Raspberry Pi 4, Raspberry Pi Zero W and Raspberry Pi Zero 2 W
@@ -167,6 +169,8 @@ Follow these steps to install and configure the project:
     Dec 13 10:33:00 pi0w systemd[1]: Started bluetooth_2_usb.service - Bluetooth to USB HID relay.
     Dec 13 10:33:06 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:06 [INFO] Launching Bluetooth 2 USB v0.8.0
     Dec 13 10:33:06 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:06 [INFO] Discovering input devices...
+    Dec 13 10:33:08 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:08 [INFO] Activated BLE TO HID relay. Pairing required: True. Allows invalid input: False
+    Dec 13 10:33:08 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:08 [INFO] Use 00000000-6907-4437-8539-9218a9d54e29 service / 00000001-6907-4437-8539-9218a9d54e29 characteristic to send keystrokes.
     Dec 13 10:33:09 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:09 [INFO] Activated relay for device /dev/input/event2, name "AceRK Mouse", phys "0a:1b:2c:3d:4e:5f"
     Dec 13 10:33:09 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:09 [INFO] Activated relay for device /dev/input/event1, name "AceRK Keyboard", phys "0a:1b:2c:3d:4e:5f"
     Dec 13 10:33:09 pi0w bluetooth_2_usb[5869]: 23-12-13 10:33:09 [INFO] Activated relay for device /dev/input/event0, name "vc4-hdmi", phys "vc4-hdmi/input0"
@@ -180,14 +184,14 @@ Follow these steps to install and configure the project:
 **No module named 'evdev' error**
 
 This error may occur on fresh Bookworm images. May be fixed with
-```
+```console
 sudo apt install python3-evdev
 ```
 
 **Python.h: No such file or directory error**
 
 This error may occur on fresh Bookworm images. May be fixed with
-```
+```console
 sudo apt install libpython3.11-dev
 ```
 
@@ -227,6 +231,13 @@ options:
   --grab_devices, -g    Grab the input devices, i.e., suppress any events on your relay device.
                         Devices are not grabbed by default.
   --list_devices, -l    List all available input devices and exit.
+  --no-input-relay      Disable input relay mode (sends input keys to USB HID device)
+                        Default: input relay enabled.
+  --no-ble-relay        Disable BLE relay mode (BLE server that sends keystrokes to USB HID device)
+                        Default: BLE relay enabled.
+  --accept-non-trusted  UNSAFE! Accepts non-trusted BLE relay clients.
+  --partial-parse-ble-command
+                        Enables partial parsing of BLE input (ignores unknown keystrokes).
   --log_to_file, -f     Add a handler that logs to file, additionally to stdout.
   --log_path LOG_PATH, -p LOG_PATH
                         The path of the log file
@@ -237,7 +248,74 @@ options:
   --help, -h            Show this help message and exit.
 ```
 
-### 4.3. Consuming the API from your Python code
+### 4.3 Bluetooth to USB GATT
+
+This service allows you to send keystrokes remotely from your PC or phone.
+
+The things you need to know:
+* The bluetooth address of the Pi device (may be obtained by `hcitool dev` command)
+* Names of GATT service and characteristic to use. Currently these are not configurable and are equal to `00000000-6907-4437-8539-9218a9d54e29` and `00000001-6907-4437-8539-9218a9d54e29`
+* You must pair your client device with Raspberry Pi (the pairing must be triggered on the client side). Some clients do support auto-pairing, others require you to do it manually.
+
+#### 4.3.1 Cross-platform python client sample
+
+This basic sample is included [as part of the repo](https://github.com/ig-sinicyn/bluetooth_2_usb/blob/feature/ble-relay/src/gatt_client/client.py).
+Assuming you have configured python venv, dependencies may be installed by running following command in the root of the repository (choose the one for your OS):
+```
+# Windows:
+.venv\Scripts\activate
+py -m pip install -r .\requirements.client.txt
+deactivate
+
+# Linux:
+source .venv/bin/activate
+py -m pip install -r .\requirements.client.txt
+deactivate
+```
+
+**Usage:**
+```console
+>py 'src/gatt_client/client.py'
+usage: client.py [-h] [--address ADDRESS] [--characteristic CHARACTERISTIC] value
+
+> py 'src/gatt_client/client.py' '-a' 'B8:27:EB:9C:F6:4C' '-c' '00000001-6907-4437-8539-9218a9d54e29' 'Alt-Tab'
+Connected to B8:27:EB:9C:F6:4C: True
+Writing value 'Alt-Tab'
+Value 'Alt-Tab' written to characteristic '00000001-6907-4437-8539-9218a9d54e29'
+```
+
+> [!NOTE]
+> Sometimes (very rarely) client fails with 'Device with address <address> was not found'. This error seems to be fixed by running client multiple times or by restarting the 'Bluetooth Support Service' service.
+
+> [!NOTE]
+> GATT Client execution time may take up to several second on Windows. It is recommended to try other clients that may work much faster.
+
+#### 4.3.2 Windows clients
+
+These are existing windows 10 + clients such as [BleConsole](https://github.com/sensboston/BLEConsole) and [Bluetooth LE Lab](https://apps.microsoft.com/detail/9n6jd37gwzc8) but these are hard to use in automation.
+
+So, there is [BleTools](https://github.com/ig-sinicyn/BleTools) as set of fast (~300ms to run) and robust utilites for writing. Please check [the documentation](https://github.com/ig-sinicyn/BleTools/blob/master/README.md) for more details.
+Example:
+```console
+> .\BleTools.Write.exe
+Usage: BleTools.Write bluetooth-address service characteristic value
+
+Writes GATT service characteristic
+
+Arguments:
+  0: bluetooth-address    MAC address of the Bluetooth LE device (Required)
+  1: service              GATT service UUID (Required)
+  2: characteristic       GATT service characteristic UUID (Required)
+  3: value                The new characteristic value (passed as UTF-8 string) (Required)
+
+Options:
+  -h, --help     Show help message
+
+> .\BleTools.Write.exe B8:27:EB:9C:F6:4C 00000000-6907-4437-8539-9218a9d54e29 00000001-6907-4437-8539-9218a9d54e29 Win
+Value 'Win' written to service / characteristic 00000000-6907-4437-8539-9218a9d54e29 / 00000001-6907-4437-8539-9218a9d54e29 (device B8:27:EB:9C:F6:4C).
+```
+
+### 4.4. Consuming the API from your Python code
 
 The API is designed such that it may be consumed both via CLI and from within external Python code. More details on this [coming soon](https://github.com/quaxalber/bluetooth_2_usb/issues/16)!
 
@@ -377,13 +455,13 @@ exit
 
 ### 7.4. There are occansional Bluetooth disconnects on Pi Zero 2
 
-Please check that you're not usig full-size metal case or cover. These are known to reduce Bluetooth connectivity range. If so, try to place your client device clother to the RPi.
+Please check that you're not using full-size metal case or cover. These are known to reduce Bluetooth connectivity range. If so, try to place your client device clother to the Pi Zero 2.
 
-Also, please check that you're use proper power source for your device (as in [7.1 section]()). Raspberry Pi is known to have connectivity issues when underpowered.
+Also, please check that you're use proper power source for your device (as specified in [7.1. The Pi keeps rebooting](#71-the-pi-keeps-rebooting-or-crashes-randomly)).
 
 ### 7.5. There are occansional Wi-Fi disconnects on Pi Zero 2
 
-There's a known issue with fresh Bookworm images on Raspberry Pi 2. Sometimes the device does not respond to incoming network requests sent via Wi-Fi.
+There's a known issue with fresh Bookworm images. Sometimes the device does not respond to incoming Wi-Fi network requests.
 
 For this issue, try to disable power_save mode for the wlan0 as suggested [here](https://forums.raspberrypi.com/viewtopic.php?p=2024045&sid=41607aa3904668e8120e9188a29c474c#p2024045).
 
@@ -392,8 +470,6 @@ For this issue, try to disable power_save mode for the wlan0 as suggested [here]
 At first, please check that you're not usig full-size metal case or cover. These are known to reduce Bluetooth connectivity range. If so, try to place your client device clother to the RPi.
 
 Also, please check that you're use proper power source for your device. Raspberry Pi is known to have connectivity issues when underpowered.
-
-There are some messages about connectivity issues ([as example](https://askubuntu.com/questions/1264315/bluetooth-keyboard-and-mouse-disconnect-when-idle-for-a-few-seconds-and-reconnec)) but I was not able to reproduce any of them.
 
 **Bluetooth reconnects takes too long**
 Try to set
@@ -405,7 +481,7 @@ in the `/etc/bluetooth/main.conf`.
 > [!NOTE]
 > Enabling the FastConnectable option increases power consumption for the device.
 
-### 7.4. I have a different issue
+### 7.6. I have a different issue
 
 Here's a few things you could try:
 
@@ -440,6 +516,10 @@ Here's a few things you could try:
   23-12-16 15:52:24 [INFO] Activated relay for device /dev/input/event2, name "AceRK Mouse", phys "0a:1b:2c:3d:4e:5f"
   23-12-16 15:52:24 [INFO] Activated relay for device /dev/input/event1, name "AceRK Keyboard", phys "0a:1b:2c:3d:4e:5f"
   23-12-16 15:52:24 [INFO] Activated relay for device /dev/input/event0, name "vc4-hdmi", phys "vc4-hdmi/input0"
+  23-12-16 15:52:27 [INFO] Activated BLE TO HID relay. Pairing required: True. Allows invalid input: False
+  23-12-16 15:52:27 [INFO] Use 00000000-6907-4437-8539-9218a9d54e29 service / 00000001-6907-4437-8539-9218a9d54e29 characteristic to send keystrokes.
+  23-12-16 15:52:27 [DEBUG] Starting GATT server
+  23-12-16 15:52:27 [DEBUG] GATT server started
   ### Manually switched Pi's Bluetooth off ###
   23-12-16 15:53:27 [CRITICAL] Connection to AceRK Keyboard lost [OSError(19, 'No such device')]
   23-12-16 15:53:27 [CRITICAL] Connection to AceRK Mouse lost [OSError(19, 'No such device')]
@@ -483,13 +563,20 @@ Here's a few things you could try:
   23-12-16 15:54:50 [CRITICAL] vc4-hdmi was cancelled
   23-12-16 15:54:50 [CRITICAL] AceRK Keyboard was cancelled
   23-12-16 15:54:50 [CRITICAL] AceRK Mouse was cancelled
+  ### Sending keystrokes using BLE relay ###
+  23-12-16 15:52:16 [DEBUG] Received input 'Win' for '00000001-6907-4437-8539-9218a9d54e29'
+  23-12-16 15:52:16 [DEBUG] Keys to send: [Win]
+  23-12-16 15:52:16 [DEBUG] Processed input 'Win' for '00000001-6907-4437-8539-9218a9d54e29'
+  23-12-16 15:54:00 [DEBUG] Received input 'Ctrl-A Ctrl-C' for '00000001-6907-4437-8539-9218a9d54e29'
+  23-12-16 15:54:00 [DEBUG] Keys to send: [Ctrl-A, Ctrl-C]
+  23-12-16 15:54:00 [DEBUG] Processed input 'Ctrl-A Ctrl-C' for '00000001-6907-4437-8539-9218a9d54e29'
   ```
 
 - Still not resolved? Double-check the [installation instructions](#3-installation)
 
 - For more help, open an [issue](https://github.com/quaxalber/bluetooth_2_usb/issues) in the [GitHub repository](https://github.com/quaxalber/bluetooth_2_usb)
 
-### 7.5. Everything is working, but can it help me with Bitcoin mining?
+### 7.7. Everything is working, but can it help me with Bitcoin mining?
 
 Absolutely! [Here's how](https://bit.ly/42BTC).
 
@@ -515,17 +602,3 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 * [Georgi Valkov](https://github.com/gvalkov) for [python-evdev](https://github.com/gvalkov/python-evdev) making reading input devices a walk in the park.
 * The folks at [Adafruit](https://www.adafruit.com/) for [CircuitPython HID](https://github.com/adafruit/Adafruit_CircuitPython_HID) and [Blinka](https://github.com/quaxalber/Adafruit_Blinka/blob/main/src/usb_hid.py) providing super smooth access to USB gadgets.
 * Special thanks to the open-source community for various other libraries and tools.
-
-# Bluetooth to USB GATT
-
-## BLE GATT
-
-TBD
-
-Example:
-```
-> 'src/gatt_client/client.py' '-a' 'B8:27:EB:9C:F6:4C' '-c' '00000001-6907-4437-8539-9218a9d54e29' 'Alt-Tab'
-Connected to B8:27:EB:9C:F6:4C: True
-Writing value 'Alt-Tab'
-Value 'Alt-Tab' written to characteristic 00000001-6907-4437-8539-9218a9d54e29
-```

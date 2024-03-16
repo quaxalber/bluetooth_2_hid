@@ -1,3 +1,5 @@
+# BASED ON https://github.com/hbldh/bleak/blob/develop/examples/philips_hue.py
+
 import sys
 import argparse
 import asyncio
@@ -73,9 +75,13 @@ def parse_args() -> Arguments:
 async def main(address: str, characteristic: UUID, value: str):
     async with BleakClient(address) as client:
         print(f"Connected to {address}: {client.is_connected}")
+
+        paired = await client.pair(protection_level=2)
+        print(f"Paired: {paired}")
+
         print(f"Writing value '{value}'")
         await client.write_gatt_char(characteristic, value.encode(encoding = 'UTF-8', errors = 'strict'), response=False)
-        print(f"Value '{value}' written to characteristic {characteristic}")
+        print(f"Value '{value}' written to characteristic '{characteristic}'")
 
 
 if __name__ == "__main__":

@@ -121,8 +121,8 @@ class BleRelay:
             **kwargs
             ) -> bytearray:
         if characteristic.uuid != GATT_CHARACTERISTIC_ID:
-            raise RuntimeError(f"Invalid characteristic {characteristic}")
-        _logger.debug(f"Read last input value {characteristic.value} for {characteristic}")
+            raise RuntimeError(f"Invalid characteristic '{characteristic.uuid}'")
+        _logger.debug(f"Read last input value '{characteristic.value}' for '{characteristic.uuid}'")
         return characteristic.value
 
     def _write_request(
@@ -132,12 +132,12 @@ class BleRelay:
             **kwargs
             ):
         if characteristic.uuid != GATT_CHARACTERISTIC_ID:
-            raise RuntimeError(f"Invalid characteristic {characteristic}")
+            raise RuntimeError(f"Invalid characteristic '{characteristic.uuid}'")
         input = value.decode()
-        _logger.debug(f"Received input {input} for {characteristic}")
+        _logger.debug(f"Received input '{input}' for '{characteristic.uuid}'")
         parsed_input = self._shortcut_parser.parse_command(input, raise_error=not self._partial_parse)
-        if len (parsed_input) == 0:
-            _logger.debug(f"invalid input received. Ignoring")
+        if len(parsed_input) == 0:
+            _logger.debug(f"Ignoring invalid input '{input}'.")
             return
 
         _logger.debug(f"Keys to send: {parsed_input}")
@@ -145,7 +145,7 @@ class BleRelay:
             self._keyboard_gadget.send(*shortcut.keycodes)
         characteristic.value = value
 
-        _logger.debug(f"Processed input {input} for {characteristic}")
+        _logger.debug(f"Processed input '{input}' for '{characteristic.uuid}'/")
 
 
 class RelayBleController:
