@@ -93,6 +93,8 @@ main() {
   # Enable modules in /etc/modules
   append_if_not_exist "dwc2" "/etc/modules"
   append_if_not_exist "libcomposite" "/etc/modules"
+  modprobe dwc2 || abort_install "Failed modprobe dwc2"
+  modprobe libcomposite || abort_install "Failed modprobe libcomposite"
 
   # Modify /boot/cmdline.txt
   cp /boot/cmdline.txt /boot/cmdline.txt.bak || colored_output "${YELLOW}" "Failed creating backup of /boot/cmdline.txt."
