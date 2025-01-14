@@ -136,14 +136,11 @@ class DeviceRelay:
     async def _async_relay_event(self, input_event: InputEvent) -> None:
         event = categorize(input_event)
         _logger.debug(f"Received {event} from {self.input_device.name}")
-        func = None
+
         if isinstance(event, RelEvent):
-            func = _move_mouse
+            _move_mouse(event)
         elif isinstance(event, KeyEvent):
-            func = _send_key
-        if func:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, func, event)
+            _send_key(event)
 
 
 def _move_mouse(event: RelEvent) -> None:
