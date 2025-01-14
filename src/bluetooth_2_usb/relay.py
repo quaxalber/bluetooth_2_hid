@@ -45,8 +45,8 @@ def init_usb_gadgets() -> None:
     _logger.debug("Initializing USB gadgets...")
     usb_hid.enable(
         [
-            Device.MOUSE,
-            Device.KEYBOARD,
+            Device.BOOT_MOUSE,
+            Device.BOOT_KEYBOARD,
             Device.CONSUMER_CONTROL,
         ]  # type: ignore
     )
