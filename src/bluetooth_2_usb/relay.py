@@ -226,7 +226,7 @@ class RelayController:
             for device in await async_list_input_devices():
                 if self._should_relay(device):
                     yield device
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1)
 
     def _should_relay(self, device: InputDevice) -> bool:
         return not self._has_task(device) and self._matches_criteria(device)
