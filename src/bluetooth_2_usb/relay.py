@@ -46,7 +46,7 @@ def init_usb_gadgets() -> None:
     usb_hid.enable(
         [
             Device.BOOT_MOUSE,
-            Device.BOOT_KEYBOARD,
+            Device.KEYBOARD,
             Device.CONSUMER_CONTROL,
         ]  # type: ignore
     )
