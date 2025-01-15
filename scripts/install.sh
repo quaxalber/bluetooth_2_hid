@@ -87,8 +87,29 @@ main() {
 
   colored_output "${GREEN}" "Modifying system files..."
 
-  # Append 'dtoverlay=dwc2' to the correct config file
-  append_if_not_exist "dtoverlay=dwc2" "${CONFIG_FILE}"
+  # Make a backup before modifying
+  cp "${CONFIG_FILE}" "${CONFIG_FILE}.bak"
+
+  # 1. If there's no [all] section, append one with dtoverlay=dwc2
+  if ! grep -q '^\[all\]' "${CONFIG_FILE}"; then
+    cat <<EOF >> "${CONFIG_FILE}"
+
+[all]
+dtoverlay=dwc2
+EOF
+  else
+    # 2. If [all] exists, check if dtoverlay=dwc2 is already there.
+    #    If not, insert it right after the [all] line.
+    awk -v overlay="dtoverlay=dwc2" '
+    BEGIN { inAll=0; found=0 }
+    {
+      if ($0 ~ /^\[all\]/) { inAll=1; next }
+      else if ($0 ~ /^\[.*\]/) { inAll=0 }
+      if (inAll && index($0, overlay) == 1) { found=1 }
+    }
+    END { exit !found }
+    ' "${CONFIG_FILE}" || sed -i '/^\[all\]/a dtoverlay=dwc2' "${CONFIG_FILE}"
+  fi
 
   # Enable modules in /etc/modules
   append_if_not_exist "dwc2" "/etc/modules"
