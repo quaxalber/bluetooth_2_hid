@@ -211,7 +211,7 @@ class RelayController:
         try:
             async with TaskGroup() as task_group:
                 self._task_group = task_group
-                _logger.info("RelayController: TaskGroup started.")
+                _logger.debug("RelayController: TaskGroup started.")
 
                 for dev in await async_list_input_devices():
                     self.add_device(dev)
@@ -234,7 +234,7 @@ class RelayController:
             return
 
         if self._task_group is None:
-            _logger.warning(f"No TaskGroup available; ignoring device {device.path}.")
+            _logger.critical(f"No TaskGroup available; ignoring device {device.path}.")
             return
 
         if device.path not in self._active_tasks:
@@ -243,7 +243,7 @@ class RelayController:
                 name=device.path
             )
             self._active_tasks[device.path] = task
-            _logger.info(f"Activated relay for {device.path}.")
+            _logger.debug(f"Created task for {device.path}.")
         else:
             _logger.debug(f"Device {device.path} is already active.")
 
@@ -261,7 +261,6 @@ class RelayController:
     async def _async_relay_events(self, device: InputDevice) -> None:
         """
         Creates a DeviceRelay, then loops forever reading events.
-        Replace `DeviceRelay(...)` with your own logic.
         """
         relay = DeviceRelay(device, self._grab_devices)
         _logger.info(f"Activated {relay}")
@@ -297,7 +296,7 @@ class UdevEventMonitor:
         # Create an observer that calls _udev_event_callback on add/remove
         self.observer = pyudev.MonitorObserver(self.monitor, self._udev_event_callback)
         self.observer.start()
-        _logger.info("UdevEventMonitor started.")
+        _logger.debug("UdevEventMonitor started.")
 
     def _udev_event_callback(self, action: str, device: pyudev.Device) -> None:
         """pyudev callback for device add/remove events."""
@@ -306,10 +305,10 @@ class UdevEventMonitor:
             return
 
         if action == "add":
-            _logger.info(f"UdevEventMonitor: Added => {device_node}")
+            _logger.debug(f"UdevEventMonitor: Added => {device_node}")
             device = InputDevice(device_node)
             self.relay_controller.add_device(device)
 
         elif action == "remove":
-            _logger.info(f"UdevEventMonitor: Removed => {device_node}")
+            _logger.debug(f"UdevEventMonitor: Removed => {device_node}")
             self.relay_controller.remove_device(device_node)
