@@ -215,6 +215,9 @@ class RelayController:
 
                 for dev in await async_list_input_devices():
                     self.add_device(dev)
+
+                while not self._cancelled:
+                    await asyncio.sleep(1)
         except* Exception as exc_grp:
             _logger.exception("RelayController: Exception in TaskGroup", exc_info=exc_grp)
         finally:
