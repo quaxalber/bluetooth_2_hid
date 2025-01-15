@@ -117,11 +117,6 @@ EOF
   modprobe dwc2 || abort_install "Failed modprobe dwc2"
   modprobe libcomposite || abort_install "Failed modprobe libcomposite"
 
-  # Modify /boot/cmdline.txt
-  cp /boot/cmdline.txt /boot/cmdline.txt.bak || colored_output "${YELLOW}" "Failed creating backup of /boot/cmdline.txt."
-  sed -i 's/modules-load=[^[:space:]]* //g' /boot/cmdline.txt || abort_install "Failed writing to /boot/cmdline.txt."
-  sed -i 's/rootwait/rootwait modules-load=dwc2/g' /boot/cmdline.txt || abort_install "Failed writing to /boot/cmdline.txt."
-
   # Create symlinks for script and service
   ln -s "${base_directory}/bluetooth_2_usb.sh" /usr/bin/bluetooth_2_usb || colored_output "${YELLOW}" "Failed creating symlink."
   ln -s "${base_directory}/bluetooth_2_usb.service" /etc/systemd/system/ || colored_output "${YELLOW}" "Failed creating symlink."
