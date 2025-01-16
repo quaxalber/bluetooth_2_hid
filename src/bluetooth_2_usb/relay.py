@@ -44,6 +44,7 @@ async def async_list_input_devices() -> list[InputDevice]:
 
 def init_usb_gadgets() -> None:
     _logger.debug("Initializing USB gadgets...")
+    usb_hid.disable()
     usb_hid.enable(
         [
             Device.BOOT_MOUSE,
@@ -57,12 +58,6 @@ def init_usb_gadgets() -> None:
     _mouse_gadget = Mouse(enabled_devices)
     _consumer_gadget = ConsumerControl(enabled_devices)
     _logger.debug(f"Enabled USB gadgets: {enabled_devices}")
-
-
-def all_gadgets_ready() -> bool:
-    return all(
-        dev is not None for dev in (_keyboard_gadget, _mouse_gadget, _consumer_gadget)
-    )
 
 
 class DeviceIdentifier:
@@ -117,8 +112,6 @@ class DeviceRelay:
         self._grab_device = grab_device
         if grab_device:
             self._input_device.grab()
-        if not all_gadgets_ready():
-            init_usb_gadgets()
 
     @property
     def input_device(self) -> InputDevice:
@@ -202,6 +195,8 @@ class RelayController:
         self._task_group: TaskGroup | None = None
         self._active_tasks: dict[str, asyncio.Task] = {}
         self._cancelled = False
+        
+        init_usb_gadgets()
 
     async def async_relay_devices(self) -> None:
         """
