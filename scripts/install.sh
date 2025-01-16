@@ -117,9 +117,16 @@ EOF
   modprobe dwc2 || abort_install "Failed modprobe dwc2"
   modprobe libcomposite || abort_install "Failed modprobe libcomposite"
 
-  # Create symlinks for script and service
-  ln -s "${base_directory}/bluetooth_2_usb.sh" /usr/bin/bluetooth_2_usb || colored_output "${YELLOW}" "Failed creating symlink."
-  ln -s "${base_directory}/bluetooth_2_usb.service" /etc/systemd/system/ || colored_output "${YELLOW}" "Failed creating symlink."
+
+  # Before creating symlink in /usr/bin, check if /usr/bin/bluetooth_2_usb exists
+  if [ ! -e "/usr/bin/bluetooth_2_usb" ]; then
+    ln -s "${base_directory}/bluetooth_2_usb.sh" /usr/bin/bluetooth_2_usb || colored_output "${YELLOW}" "Failed creating symlink."
+  fi
+
+  # Before creating symlink for the systemd service, check if it already exists
+  if [ ! -e "/etc/systemd/system/bluetooth_2_usb.service" ]; then
+    ln -s "${base_directory}/bluetooth_2_usb.service" /etc/systemd/system/ || colored_output "${YELLOW}" "Failed creating symlink."
+  fi
 
   # Enable service.
   systemctl enable bluetooth_2_usb.service || abort_install "Failed enabling service."
@@ -140,8 +147,10 @@ EOF
 # Trap EXIT signal and call cleanup function
 trap cleanup EXIT
 
-# Create log dir 
-mkdir /var/log/bluetooth_2_usb || colored_output "${YELLOW}" "Failed creating log dir."
+log_dir="/var/log/bluetooth_2_usb"
+if [ ! -d "${log_dir}" ]; then
+    mkdir "${log_dir}" || colored_output "${YELLOW}" "Failed creating log dir."
+fi
 
 # Call the main function and pipe its output to tee
-main 2>&1 | tee  /var/log/bluetooth_2_usb/install.log
+main 2>&1 | tee  "${log_dir}/install.log"
