@@ -272,7 +272,7 @@ class RelayController:
 
     def _should_relay(self, device: InputDevice) -> bool:
         """Return True if we should relay this device (auto_discover or matches)."""
-        return self._auto_discover or any(id.matches(device) for id in self._device_ids)
+        return (self._auto_discover and not device.name.startswith('vc4-hdmi')) or any(id.matches(device) for id in self._device_ids)
 
 
 
