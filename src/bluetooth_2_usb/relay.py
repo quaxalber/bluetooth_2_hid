@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import CancelledError, TaskGroup
+from asyncio import CancelledError, Task, TaskGroup
 import re
 from typing import AsyncGenerator, NoReturn, Optional
 
@@ -209,7 +209,6 @@ class RelayController:
         self._auto_discover = auto_discover
         self._grab_devices = grab_devices
         self._task_group: TaskGroup | None = None
-        self._active_tasks: dict[str, asyncio.Task] = {}
         self._cancelled = False
 
         init_usb_gadgets()
@@ -250,11 +249,11 @@ class RelayController:
             _logger.critical(f"No TaskGroup available; ignoring device {device}.")
             return
 
-        if device.path not in self._active_tasks:
-            task = self._task_group.create_task(
+        task = self.get_task(device.path)
+        if not task:
+            self._task_group.create_task(
                 self._async_relay_events(device), name=device.path
             )
-            self._active_tasks[device.path] = task
             _logger.debug(f"Created task for {device}.")
         else:
             _logger.debug(f"Device {device} is already active.")
@@ -263,12 +262,17 @@ class RelayController:
         """
         Called when a device is removed. Cancels the associated relay task if running.
         """
-        task = self._active_tasks.pop(device_path, None)
+        task = self.get_task(device_path)
         if task and not task.done():
             _logger.info(f"Cancelling relay for {device_path}.")
             task.cancel()
         else:
             _logger.debug(f"No active task found for {device_path} to remove.")
+
+    def get_task(self, device_path: str) -> Task:
+        return next(
+            (t for t in asyncio.all_tasks() if t.get_name() == device_path), None
+        )
 
     async def _async_relay_events(self, device: InputDevice) -> None:
         """
