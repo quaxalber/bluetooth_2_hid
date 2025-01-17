@@ -208,6 +208,7 @@ class RelayController:
         self._device_ids = [DeviceIdentifier(id) for id in device_identifiers]
         self._auto_discover = auto_discover
         self._grab_devices = grab_devices
+        self._active_tasks: dict[str, asyncio.Task] = {}
         self._task_group: TaskGroup | None = None
         self._cancelled = False
 
@@ -249,11 +250,11 @@ class RelayController:
             _logger.critical(f"No TaskGroup available; ignoring device {device}.")
             return
 
-        task = self.get_task(device.path)
-        if not task:
-            self._task_group.create_task(
+        if device.path not in self._active_tasks:
+            task = self._task_group.create_task(
                 self._async_relay_events(device), name=device.path
             )
+            self._active_tasks[device.path] = task
             _logger.debug(f"Created task for {device}.")
         else:
             _logger.debug(f"Device {device} is already active.")
@@ -262,17 +263,12 @@ class RelayController:
         """
         Called when a device is removed. Cancels the associated relay task if running.
         """
-        task = self.get_task(device_path)
+        task = self._active_tasks.pop(device_path, None)
         if task and not task.done():
             _logger.info(f"Cancelling relay for {device_path}.")
             task.cancel()
         else:
             _logger.debug(f"No active task found for {device_path} to remove.")
-
-    def get_task(self, device_path: str) -> Task:
-        return next(
-            (t for t in asyncio.all_tasks() if t.get_name() == device_path), None
-        )
 
     async def _async_relay_events(self, device: InputDevice) -> None:
         """
@@ -296,6 +292,8 @@ class RelayController:
             _logger.critical(f"Lost connection to {device} [{ex!r}].")
         except Exception:
             _logger.exception(f"Unhandled exception in relay for {device}.")
+        finally:
+            self.remove_device(device.path)
 
     def _should_relay(self, device: InputDevice) -> bool:
         """Return True if we should relay this device (auto_discover or matches)."""
