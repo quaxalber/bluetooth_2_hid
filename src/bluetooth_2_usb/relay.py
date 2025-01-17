@@ -111,7 +111,17 @@ class DeviceRelay:
         self._input_device = input_device
         self._grab_device = grab_device
         if grab_device:
-            self._input_device.grab()
+            try:
+                self._input_device.grab()
+            except OSError as ex:
+                if ex.errno == 19:
+                    # The device disappeared just before we grabbed it
+                    _logger.warning(
+                        f"Device {self._input_device} vanished before grab."
+                    )
+                    return
+                else:
+                    raise
 
     @property
     def input_device(self) -> InputDevice:
@@ -124,8 +134,14 @@ class DeviceRelay:
         return f"{self.__class__.__name__}({self.input_device!r}, {self._grab_device})"
 
     async def async_relay_events_loop(self) -> NoReturn:
-        async for event in self.input_device.async_read_loop():
-            await self._async_relay_event(event)
+        try:
+            async for event in self.input_device.async_read_loop():
+                await self._async_relay_event(event)
+        except OSError as ex:
+            if ex.errno == 19:  # No such device
+                _logger.info(f"{self.input_device} disconnected; stopping relay.")
+            else:
+                raise
 
     async def _async_relay_event(self, input_event: InputEvent) -> None:
         event = categorize(input_event)
@@ -266,7 +282,13 @@ class RelayController:
         except CancelledError:
             _logger.debug(f"Relay cancelled for device {device.path}.")
             raise
-        except (OSError, FileNotFoundError) as ex:
+        except OSError as ex:
+            if ex.errno == 19:
+                _logger.info(f"{device.path} removed; ignoring.")
+            else:
+                _logger.exception(f"Unhandled OSError for {device.path}")
+                raise
+        except FileNotFoundError as ex:
             _logger.critical(f"Lost connection to {device.path} [{ex!r}].")
         except Exception:
             _logger.exception(f"Unhandled exception in relay for {device.path}.")
