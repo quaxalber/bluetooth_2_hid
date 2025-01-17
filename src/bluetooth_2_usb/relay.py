@@ -243,11 +243,11 @@ class RelayController:
         the device passes the _should_relay() check and isn't already tracked.
         """
         if not self._should_relay(device):
-            _logger.debug(f"Device {device.path} does not match criteria; ignoring.")
+            _logger.debug(f"Device {device} does not match criteria; ignoring.")
             return
 
         if self._task_group is None:
-            _logger.critical(f"No TaskGroup available; ignoring device {device.path}.")
+            _logger.critical(f"No TaskGroup available; ignoring device {device}.")
             return
 
         if device.path not in self._active_tasks:
@@ -255,9 +255,9 @@ class RelayController:
                 self._async_relay_events(device), name=device.path
             )
             self._active_tasks[device.path] = task
-            _logger.debug(f"Created task for {device.path}.")
+            _logger.debug(f"Created task for {device}.")
         else:
-            _logger.debug(f"Device {device.path} is already active.")
+            _logger.debug(f"Device {device} is already active.")
 
     def remove_device(self, device_path: str) -> None:
         """
@@ -280,18 +280,18 @@ class RelayController:
         try:
             await relay.async_relay_events_loop()
         except CancelledError:
-            _logger.debug(f"Relay cancelled for device {device.path}.")
+            _logger.debug(f"Relay cancelled for device {device}.")
             raise
         except OSError as ex:
             if ex.errno == 19:
-                _logger.info(f"{device.path} removed; ignoring.")
+                _logger.info(f"{device} removed; ignoring.")
             else:
-                _logger.exception(f"Unhandled OSError for {device.path}")
+                _logger.exception(f"Unhandled OSError for {device}")
                 raise
         except FileNotFoundError as ex:
-            _logger.critical(f"Lost connection to {device.path} [{ex!r}].")
+            _logger.critical(f"Lost connection to {device} [{ex!r}].")
         except Exception:
-            _logger.exception(f"Unhandled exception in relay for {device.path}.")
+            _logger.exception(f"Unhandled exception in relay for {device}.")
 
     def _should_relay(self, device: InputDevice) -> bool:
         """Return True if we should relay this device (auto_discover or matches)."""
