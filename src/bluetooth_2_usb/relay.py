@@ -195,7 +195,7 @@ class RelayController:
         self._task_group: TaskGroup | None = None
         self._active_tasks: dict[str, asyncio.Task] = {}
         self._cancelled = False
-        
+
         init_usb_gadgets()
 
     async def async_relay_devices(self) -> None:
@@ -214,7 +214,9 @@ class RelayController:
                 while not self._cancelled:
                     await asyncio.sleep(0.1)
         except* Exception as exc_grp:
-            _logger.exception("RelayController: Exception in TaskGroup", exc_info=exc_grp)
+            _logger.exception(
+                "RelayController: Exception in TaskGroup", exc_info=exc_grp
+            )
         finally:
             self._task_group = None
             _logger.info("RelayController: TaskGroup exited.")
@@ -234,8 +236,7 @@ class RelayController:
 
         if device.path not in self._active_tasks:
             task = self._task_group.create_task(
-                self._async_relay_events(device),
-                name=device.path
+                self._async_relay_events(device), name=device.path
             )
             self._active_tasks[device.path] = task
             _logger.debug(f"Created task for {device.path}.")
@@ -272,8 +273,9 @@ class RelayController:
 
     def _should_relay(self, device: InputDevice) -> bool:
         """Return True if we should relay this device (auto_discover or matches)."""
-        return (self._auto_discover and not device.name.startswith('vc4-hdmi')) or any(id.matches(device) for id in self._device_ids)
-
+        return (self._auto_discover and not device.name.startswith("vc4-hdmi")) or any(
+            id.matches(device) for id in self._device_ids
+        )
 
 
 class UdevEventMonitor:
@@ -281,12 +283,14 @@ class UdevEventMonitor:
     Watches for new/removed /dev/input/event* devices and notifies RelayController.
     """
 
-    def __init__(self, relay_controller: RelayController, loop: asyncio.AbstractEventLoop):
+    def __init__(
+        self, relay_controller: RelayController, loop: asyncio.AbstractEventLoop
+    ):
         self.relay_controller = relay_controller
         self.loop = loop
         self.context = pyudev.Context()
         self.monitor = pyudev.Monitor.from_netlink(self.context)
-        self.monitor.filter_by(subsystem='input')
+        self.monitor.filter_by(subsystem="input")
 
         # Create an observer that calls _udev_event_callback on add/remove
         self.observer = pyudev.MonitorObserver(self.monitor, self._udev_event_callback)
