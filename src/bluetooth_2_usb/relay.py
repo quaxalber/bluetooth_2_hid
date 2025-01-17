@@ -134,14 +134,8 @@ class DeviceRelay:
         return f"{self.__class__.__name__}({self.input_device!r}, {self._grab_device})"
 
     async def async_relay_events_loop(self) -> NoReturn:
-        try:
-            async for event in self.input_device.async_read_loop():
-                await self._async_relay_event(event)
-        except OSError as ex:
-            if ex.errno == 19:  # No such device
-                _logger.info(f"{self.input_device} disconnected; stopping relay.")
-            else:
-                raise
+        async for event in self.input_device.async_read_loop():
+            await self._async_relay_event(event)
 
     async def _async_relay_event(self, input_event: InputEvent) -> None:
         event = categorize(input_event)
@@ -265,7 +259,7 @@ class RelayController:
         """
         task = self._active_tasks.pop(device_path, None)
         if task and not task.done():
-            _logger.info(f"Cancelling relay for {device_path}.")
+            _logger.debug(f"Cancelling relay for {device_path}.")
             task.cancel()
         else:
             _logger.debug(f"No active task found for {device_path} to remove.")
@@ -284,7 +278,7 @@ class RelayController:
             raise
         except OSError as ex:
             if ex.errno == 19:
-                _logger.info(f"{device} removed; ignoring.")
+                _logger.info(f"Lost connection to {device}")
             else:
                 _logger.exception(f"Unhandled OSError for {device}")
                 raise
