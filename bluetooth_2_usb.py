@@ -59,7 +59,7 @@ async def main() -> NoReturn:
     monitor_loop = asyncio.get_event_loop()
 
     with UdevEventMonitor(relay_controller, monitor_loop):
-        monitor_loop.run_until_complete(relay_controller.async_relay_devices())
+        await relay_controller.async_relay_devices()
 
 
 async def async_list_devices():
