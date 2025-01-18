@@ -391,11 +391,12 @@ class RelayController:
 class UdevEventMonitor:
     """
     Watches for new/removed /dev/input/event* devices and notifies RelayController.
+    Provides a context manager interface to ensure graceful startup and shutdown.
     """
 
     def __init__(
-        self, relay_controller: RelayController, loop: asyncio.AbstractEventLoop
-    ):
+        self, relay_controller: "RelayController", loop: asyncio.AbstractEventLoop
+    ) -> None:
         self.relay_controller = relay_controller
         self.loop = loop
         self.context = pyudev.Context()
@@ -404,11 +405,29 @@ class UdevEventMonitor:
 
         # Create an observer that calls _udev_event_callback on add/remove
         self.observer = pyudev.MonitorObserver(self.monitor, self._udev_event_callback)
+        _logger.debug("UdevEventMonitor initialized (observer not started yet).")
+
+    def __enter__(self) -> "UdevEventMonitor":
+        """
+        Starts the observer on entering the context.
+        """
         self.observer.start()
-        _logger.debug("UdevEventMonitor started.")
+        _logger.debug("UdevEventMonitor started observer.")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        """
+        Stops the observer on exiting the context.
+        Returning False means we don't suppress any exceptions.
+        """
+        self.observer.stop()
+        _logger.debug("UdevEventMonitor stopped observer.")
+        return False
 
     def _udev_event_callback(self, action: str, device: pyudev.Device) -> None:
-        """pyudev callback for device add/remove events."""
+        """
+        pyudev callback for device add/remove events.
+        """
         device_node = device.device_node
         if not device_node or not device_node.startswith("/dev/input/event"):
             return
