@@ -19,7 +19,6 @@ logger = get_logger()
 VERSION = "0.8.3"
 VERSIONED_NAME = f"Bluetooth 2 USB v{VERSION}"
 
-# We'll use an asyncio.Event to trigger graceful shutdown
 shutdown_event = asyncio.Event()
 
 
@@ -40,15 +39,12 @@ async def main() -> None:
     """
     args = parse_args()
 
-    # Debug-level logging if requested
     if args.debug:
         logger.setLevel(DEBUG)
 
-    # Show version and exit, if requested
     if args.version:
         print_version()
 
-    # List devices and exit, if requested
     if args.list_devices:
         await async_list_devices()
 
@@ -65,7 +61,6 @@ async def main() -> None:
     logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
-    # Enable our USB HID devices
     usb_manager = UsbHidManager()
     usb_manager.enable_devices()
 
@@ -78,18 +73,14 @@ async def main() -> None:
 
     event_loop = asyncio.get_event_loop()
 
-    # Use UdevEventMonitor in a context manager
     with UdevEventMonitor(relay_controller, event_loop):
-        # Run relay_controller in the background
         relay_task = asyncio.create_task(relay_controller.async_relay_devices())
 
-        # Now wait until we get a shutdown signal
         await shutdown_event.wait()
 
-        # If we get here, it means a graceful shutdown is requested
         logger.info("Shutdown event triggered. Cancelling relay task...")
         relay_task.cancel()
-        # Wait for the relay task to finish
+
         await asyncio.gather(relay_task, return_exceptions=True)
 
 
