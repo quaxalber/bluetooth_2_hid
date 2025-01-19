@@ -24,21 +24,9 @@ shutdown_event = asyncio.Event()
 
 
 def signal_handler(sig, frame):
-    """
-    Signal handler that differentiates between SIGINT (raise KeyboardInterrupt)
-    and other signals (set an event for graceful shutdown).
-    """
     sig_name = signal.Signals(sig).name
-    if sig == signal.SIGINT:
-        # Preserve fast interrupt for Ctrl+C in the console.
-        logger.info(
-            f"Received signal: {sig_name}. Raising KeyboardInterrupt for immediate shutdown."
-        )
-        raise KeyboardInterrupt
-    else:
-        # For SIGTERM, SIGHUP, SIGQUIT: set the event instead of raising KeyboardInterrupt.
-        logger.info(f"Received signal: {sig_name}. Requesting graceful shutdown.")
-        shutdown_event.set()
+    logger.info(f"Received signal: {sig_name}. Requesting graceful shutdown.")
+    shutdown_event.set()
 
 
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
@@ -95,8 +83,7 @@ async def main() -> None:
         # Run relay_controller in the background
         relay_task = asyncio.create_task(relay_controller.async_relay_devices())
 
-        # Now wait until we get a shutdown signal (SIGTERM, SIGHUP, SIGQUIT)
-        # or a KeyboardInterrupt (SIGINT) interrupts main().
+        # Now wait until we get a shutdown signal
         await shutdown_event.wait()
 
         # If we get here, it means a graceful shutdown is requested
@@ -104,8 +91,6 @@ async def main() -> None:
         relay_task.cancel()
         # Wait for the relay task to finish
         await asyncio.gather(relay_task, return_exceptions=True)
-
-        logger.info("RelayController has shut down cleanly.")
 
 
 async def async_list_devices():
@@ -142,8 +127,6 @@ if __name__ == "__main__":
     """
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user (SIGINT). Exiting.")
     except Exception:
         logger.exception("Unhandled exception encountered. Aborting mission.")
         raise
