@@ -71,8 +71,11 @@ async def main() -> None:
     logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
+    usb_manager = UsbHidManager()
+    usb_manager.enable_devices()
+
     relay_controller = RelayController(
-        usb_manager=UsbHidManager(),
+        usb_manager=usb_manager,
         device_identifiers=args.device_ids,
         auto_discover=args.auto_discover,
         grab_devices=args.grab_devices,
