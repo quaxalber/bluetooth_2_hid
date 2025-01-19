@@ -15,18 +15,30 @@ from src.bluetooth_2_usb.relay import (
     async_list_input_devices,
 )
 
-
 logger = get_logger()
 VERSION = "0.8.3"
 VERSIONED_NAME = f"Bluetooth 2 USB v{VERSION}"
 
+# We'll use an asyncio.Event to trigger graceful shutdown
+shutdown_event = asyncio.Event()
+
 
 def signal_handler(sig, frame):
+    """
+    Signal handler that differentiates between SIGINT (raise KeyboardInterrupt)
+    and other signals (set an event for graceful shutdown).
+    """
     sig_name = signal.Signals(sig).name
-    logger.info(f"Received signal: {sig_name}. Requesting graceful shutdown.")
-    # Raising KeyboardInterrupt stops asyncio.run(main()) gracefully,
-    # triggering the exception block where we can do cleanup if needed.
-    raise KeyboardInterrupt
+    if sig == signal.SIGINT:
+        # Preserve fast interrupt for Ctrl+C in the console.
+        logger.info(
+            f"Received signal: {sig_name}. Raising KeyboardInterrupt for immediate shutdown."
+        )
+        raise KeyboardInterrupt
+    else:
+        # For SIGTERM, SIGHUP, SIGQUIT: set the event instead of raising KeyboardInterrupt.
+        logger.info(f"Received signal: {sig_name}. Requesting graceful shutdown.")
+        shutdown_event.set()
 
 
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
@@ -35,13 +47,8 @@ for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
 
 async def main() -> None:
     """
-    Parses command-line arguments, sets up logging and starts the event loop which
-    reads events from the input devices and forwards them to the corresponding USB
-    gadget device.
-
-    Returns:
-        None: The function runs indefinitely unless a signal or exception forces
-              an exit.
+    Parses command-line arguments, sets up logging, starts the event loop
+    to forward input-device events to USB gadgets, and then waits for a shutdown signal.
     """
     args = parse_args()
 
@@ -64,13 +71,13 @@ async def main() -> None:
         except OSError as e:
             logger.error(f"Could not open log file '{args.log_path}' for writing: {e}")
             sys.exit(1)
-
         log_handlers_message += f" and to {args.log_path}"
 
     logger.debug(f"CLI args: {args}")
     logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
+    # Enable our USB HID devices
     usb_manager = UsbHidManager()
     usb_manager.enable_devices()
 
@@ -83,10 +90,22 @@ async def main() -> None:
 
     event_loop = asyncio.get_event_loop()
 
-    # UdevEventMonitor listens for device changes and notifies the relay_controller.
+    # Use UdevEventMonitor in a context manager
     with UdevEventMonitor(relay_controller, event_loop):
-        # Forward events indefinitely or until a KeyboardInterrupt/signal stops us
-        await relay_controller.async_relay_devices()
+        # Run relay_controller in the background
+        relay_task = asyncio.create_task(relay_controller.async_relay_devices())
+
+        # Now wait until we get a shutdown signal (SIGTERM, SIGHUP, SIGQUIT)
+        # or a KeyboardInterrupt (SIGINT) interrupts main().
+        await shutdown_event.wait()
+
+        # If we get here, it means a graceful shutdown is requested
+        logger.info("Shutdown event triggered. Cancelling relay task...")
+        relay_task.cancel()
+        # Wait for the relay task to finish
+        await asyncio.gather(relay_task, return_exceptions=True)
+
+        logger.info("RelayController has shut down cleanly.")
 
 
 async def async_list_devices():
@@ -109,8 +128,9 @@ def print_version():
 
 def exit_safely():
     """
-    When the script is run with help or version flag, we need to unregister usb_hid.disable() from atexit
-    because else an exception occurs if the script is already running, e.g. as service.
+    When the script is run with help or version flag, we need to unregister usb_hid.disable()
+    from atexit because else an exception occurs if the script is already running,
+    e.g. as service.
     """
     atexit.unregister(usb_hid.disable)
     sys.exit(0)
@@ -119,12 +139,11 @@ def exit_safely():
 if __name__ == "__main__":
     """
     Entry point for the script.
-    We catch KeyboardInterrupt gracefully to perform any needed cleanup.
     """
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        logger.info("Shutdown requested. Exiting.")
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user (SIGINT). Exiting.")
     except Exception:
         logger.exception("Unhandled exception encountered. Aborting mission.")
         raise
