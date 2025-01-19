@@ -50,7 +50,6 @@ class UsbHidManager:
         """
         Disables and re-enables usb_hid devices to attach as mouse, keyboard, and consumer control.
         """
-        # Safely disable existing usb_hid, ignoring specific known errors.
         try:
             usb_hid.disable()
         except Exception as ex:
@@ -146,7 +145,6 @@ class RelayController:
                 self._task_group = task_group
                 _logger.debug("RelayController: TaskGroup started.")
 
-                # Attempt to relay any existing devices that match
                 for device in await async_list_input_devices():
                     if self._should_relay(device):
                         self.add_device(device.path)
@@ -173,7 +171,6 @@ class RelayController:
         try:
             device = InputDevice(device_path)
         except OSError:
-            # The device may have disappeared in the meantime
             _logger.debug(f"{device_path} vanished before we could open it.")
             return
 
@@ -185,7 +182,6 @@ class RelayController:
             _logger.debug(f"Device {device} is already active.")
             return
 
-        # Create the relay's coroutine and add it to the TaskGroup
         task = self._task_group.create_task(
             self._async_relay_events(device), name=device.path
         )
@@ -240,10 +236,8 @@ class RelayController:
             for prefix in self._skip_name_prefixes:
                 if name_lower.startswith(prefix.lower()):
                     return False
-            # If not skipped, auto-discover it
             return True
 
-        # Non-auto-discover mode => must match at least one device identifier
         return any(identifier.matches(device) for identifier in self._device_ids)
 
 
@@ -426,7 +420,6 @@ def relay_event(event: InputEvent, usb_manager: UsbHidManager) -> None:
         move_mouse(event, usb_manager)
     elif isinstance(event, KeyEvent):
         send_key_event(event, usb_manager)
-    # Otherwise, ignore the event.
 
 
 def move_mouse(event: RelEvent, usb_manager: UsbHidManager) -> None:
@@ -458,7 +451,7 @@ def send_key_event(event: KeyEvent, usb_manager: UsbHidManager) -> None:
     """
     key_id, key_name = evdev_to_usb_hid(event)
     if key_id is None or key_name is None:
-        return  # Unrecognized key code
+        return
 
     output_gadget = get_output_device(event, usb_manager)
     if output_gadget is None:
@@ -510,7 +503,6 @@ class UdevEventMonitor:
         self.monitor = pyudev.Monitor.from_netlink(self.context)
         self.monitor.filter_by(subsystem="input")
 
-        # Create an observer that calls _udev_event_callback on add/remove
         self.observer = pyudev.MonitorObserver(self.monitor, self._udev_event_callback)
         _logger.debug("UdevEventMonitor initialized (observer not started yet).")
 
