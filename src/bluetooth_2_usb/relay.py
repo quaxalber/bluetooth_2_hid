@@ -415,7 +415,12 @@ class UdevEventMonitor:
         _logger.debug("UdevEventMonitor started observer.")
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> bool:
         """
         Stops the observer on exiting the context.
         Returning False means we don't suppress any exceptions.
