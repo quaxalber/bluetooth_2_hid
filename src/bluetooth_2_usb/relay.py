@@ -370,7 +370,7 @@ class RelayController:
             _logger.debug(f"Relay cancelled for device {device}.")
             raise
         except (OSError, FileNotFoundError) as ex:
-            _logger.critical(f"Lost connection to {device} [{ex!r}].")
+            _logger.info(f"Lost connection to {device}.")
         except Exception:
             _logger.exception(f"Unhandled exception in relay for {device}.")
         finally:
