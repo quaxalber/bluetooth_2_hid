@@ -116,7 +116,8 @@ if __name__ == "__main__":
     """
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Graceful shutdown requested. Exiting.")
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Shutdown requested. Exiting.")
     except Exception:
         logger.exception("Unhandled exception encountered. Aborting mission.")
+        raise
