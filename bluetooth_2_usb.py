@@ -11,6 +11,7 @@ from src.bluetooth_2_usb.logging import add_file_handler, get_logger
 from src.bluetooth_2_usb.relay import (
     RelayController,
     UdevEventMonitor,
+    UsbHidManager,
     async_list_input_devices,
 )
 
@@ -71,7 +72,10 @@ async def main() -> None:
     logger.info(f"Launching {VERSIONED_NAME}")
 
     relay_controller = RelayController(
-        args.device_ids, args.auto_discover, args.grab_devices
+        usb_manager=UsbHidManager(),
+        device_identifiers=args.device_ids,
+        auto_discover=args.auto_discover,
+        grab_devices=args.grab_devices,
     )
 
     event_loop = asyncio.get_event_loop()
