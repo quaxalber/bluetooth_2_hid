@@ -120,4 +120,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except Exception:
         logger.exception("Unhandled exception encountered. Aborting mission.")
-        raise
+        sys.exit(1)
