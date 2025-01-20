@@ -157,7 +157,7 @@ class RelayController:
             )
         finally:
             self._task_group = None
-            _logger.info("RelayController: TaskGroup exited.")
+            _logger.debug("RelayController: TaskGroup exited.")
 
     def add_device(self, device_path: str) -> None:
         """

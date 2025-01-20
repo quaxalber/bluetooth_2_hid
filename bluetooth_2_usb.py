@@ -24,7 +24,7 @@ shutdown_event = asyncio.Event()
 
 def signal_handler(sig, frame):
     sig_name = signal.Signals(sig).name
-    logger.info(f"Received signal: {sig_name}. Requesting graceful shutdown.")
+    logger.debug(f"Received signal: {sig_name}. Requesting graceful shutdown.")
     shutdown_event.set()
 
 
@@ -78,7 +78,7 @@ async def main() -> None:
 
         await shutdown_event.wait()
 
-        logger.info("Shutdown event triggered. Cancelling relay task...")
+        logger.debug("Shutdown event triggered. Cancelling relay task...")
         relay_task.cancel()
 
         await asyncio.gather(relay_task, return_exceptions=True)
