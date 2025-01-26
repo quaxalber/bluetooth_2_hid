@@ -14,6 +14,7 @@ from usb_hid import Device
 
 from .evdev import (
     evdev_to_usb_hid,
+    find_key_name,
     get_mouse_movement,
     is_consumer_key,
     is_mouse_button,
@@ -109,16 +110,17 @@ class ShortcutToggler:
         self.currently_pressed: set[str] = set()
         self.shortcut_triggered = False
 
-    def handle_key_event(self, key_event: KeyEvent) -> None:
+    def handle_key_event(self, event: KeyEvent) -> None:
         """
         Called on every key press/release.
         """
-        key_name = key_event.keycode
-        key_state = key_event.keystate
+        key_name = find_key_name(event)
+        if key_name is None:
+            return
 
-        if key_state == KeyEvent.key_down:
+        if event.keystate == KeyEvent.key_down:
             self.currently_pressed.add(key_name)
-        elif key_state == KeyEvent.key_up:
+        elif event.keystate == KeyEvent.key_up:
             if key_name in self.currently_pressed:
                 self.currently_pressed.remove(key_name)
 
