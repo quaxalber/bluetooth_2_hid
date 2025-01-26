@@ -345,7 +345,7 @@ class DeviceRelay:
             try:
                 self._input_device.grab()
             except Exception as ex:
-                _logger.debug(f"Could not grab {self._input_device.path}: {ex}")
+                _logger.warning(f"Could not grab {self._input_device.path}: {ex}")
         return self
 
     async def __aexit__(
@@ -358,7 +358,7 @@ class DeviceRelay:
             try:
                 self._input_device.ungrab()
             except Exception as ex:
-                _logger.debug(f"Unable to ungrab {self._input_device.path}: {ex}")
+                _logger.warning(f"Unable to ungrab {self._input_device.path}: {ex}")
 
         # Returning False means any exceptions are not suppressed.
         return False
@@ -393,7 +393,7 @@ class DeviceRelay:
                     self._currently_grabbed = True
                     _logger.debug(f"Grabbed {self._input_device}")
                 except Exception as ex:
-                    _logger.debug(f"Could not grab {self._input_device}: {ex}")
+                    _logger.warning(f"Could not grab {self._input_device}: {ex}")
 
             elif self._grab_device and not active and self._currently_grabbed:
                 try:
@@ -401,7 +401,7 @@ class DeviceRelay:
                     self._currently_grabbed = False
                     _logger.debug(f"Ungrabbed {self._input_device}")
                 except Exception as ex:
-                    _logger.debug(f"Could not ungrab {self._input_device}: {ex}")
+                    _logger.warning(f"Could not ungrab {self._input_device}: {ex}")
 
             if not active:
                 continue
