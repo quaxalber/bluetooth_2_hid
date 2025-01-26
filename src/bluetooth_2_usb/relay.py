@@ -344,6 +344,7 @@ class DeviceRelay:
         if self._grab_device:
             try:
                 self._input_device.grab()
+                self._currently_grabbed = True
             except Exception as ex:
                 _logger.warning(f"Could not grab {self._input_device.path}: {ex}")
         return self
@@ -357,6 +358,7 @@ class DeviceRelay:
         if self._grab_device:
             try:
                 self._input_device.ungrab()
+                self._currently_grabbed = False
             except Exception as ex:
                 _logger.warning(f"Unable to ungrab {self._input_device.path}: {ex}")
 
