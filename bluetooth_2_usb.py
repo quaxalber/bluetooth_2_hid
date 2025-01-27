@@ -87,7 +87,12 @@ async def main() -> None:
 
     event_loop = asyncio.get_event_loop()
 
-    with UdevEventMonitor(relay_controller, event_loop):
+    with UdevEventMonitor(
+        relay_controller=relay_controller,
+        gadget_manager=gadget_manager,
+        loop=event_loop,
+        relay_active_event=relay_active_event,
+    ):
         relay_task = asyncio.create_task(relay_controller.async_relay_devices())
 
         await shutdown_event.wait()

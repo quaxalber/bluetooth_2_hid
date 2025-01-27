@@ -431,10 +431,20 @@ class DeviceRelay:
                     )
                     await asyncio.sleep(self._blockingio_retry_delay)
                 else:
-                    _logger.debug(
+                    _logger.warning(
                         f"HID write blocked again on final retry—skipping {event}."
                     )
                     return
+            except BrokenPipeError:
+                _logger.warning(
+                    """
+                    BrokenPipeError: USB cable likely disconnected or power-only. Pausing relay.\n
+                    See: https://github.com/quaxalber/bluetooth_2_usb?tab=readme-ov-file#7-troubleshooting
+                    """
+                )
+                if self._relay_active_event:
+                    self._relay_active_event.clear()
+                return
 
 
 class DeviceIdentifier:
@@ -587,30 +597,45 @@ def get_output_device(
 
 class UdevEventMonitor:
     """
-    Watches for new/removed /dev/input/event* devices and notifies RelayController.
+    Watches for new/removed /dev/input/event* devices and also watches
+    for the gadget device(s) /dev/hidg* to automatically pause the relay
+    if the USB cable is disconnected and notifies RelayController.
     Provides a context manager interface to ensure graceful startup and shutdown.
     """
 
     def __init__(
         self,
         relay_controller: "RelayController",
+        gadget_manager: "GadgetManager",
         loop: asyncio.AbstractEventLoop,
+        relay_active_event: asyncio.Event,
     ) -> None:
         self.relay_controller = relay_controller
+        self.gadget_manager = gadget_manager
         self.loop = loop
-        self.context = pyudev.Context()
-        self.monitor = pyudev.Monitor.from_netlink(self.context)
-        self.monitor.filter_by(subsystem="input")
+        self.relay_active_event = relay_active_event
 
-        self.observer = pyudev.MonitorObserver(self.monitor, self._udev_event_callback)
-        _logger.debug("UdevEventMonitor initialized (observer not started yet).")
+        self.context = pyudev.Context()
+
+        self.monitor_input = pyudev.Monitor.from_netlink(self.context)
+        self.monitor_input.filter_by("input")
+        self.observer_input = pyudev.MonitorObserver(
+            self.monitor_input, self._udev_event_callback_input
+        )
+
+        self.monitor_gadget = pyudev.Monitor.from_netlink(self.context)
+        self.monitor_gadget.filter_by("usbmisc")
+        self.monitor_gadget.filter_by("hid")
+        self.observer_gadget = pyudev.MonitorObserver(
+            self.monitor_gadget, self._udev_event_callback_gadget
+        )
+
+        _logger.debug("UdevEventMonitor initialized.")
 
     def __enter__(self) -> "UdevEventMonitor":
-        """
-        Starts the observer on entering the context.
-        """
-        self.observer.start()
-        _logger.debug("UdevEventMonitor started observer.")
+        self.observer_input.start()
+        self.observer_gadget.start()
+        _logger.debug("UdevEventMonitor started both observers.")
         return self
 
     def __exit__(
@@ -619,25 +644,45 @@ class UdevEventMonitor:
         exc_val: Optional[BaseException],
         exc_tb: Optional[Any],
     ) -> bool:
-        """
-        Stops the observer on exiting the context.
-        Returning False means we don't suppress any exceptions.
-        """
-        self.observer.stop()
-        _logger.debug("UdevEventMonitor stopped observer.")
-        return False
+        self.observer_input.stop()
+        self.observer_gadget.stop()
+        _logger.debug("UdevEventMonitor stopped both observers.")
+        return False  # Do not suppress exceptions
 
-    def _udev_event_callback(self, action: str, device: pyudev.Device) -> None:
+    def _udev_event_callback_input(self, action: str, device: pyudev.Device) -> None:
         """
-        pyudev callback for device add/remove events.
+        Callback for new/removed /dev/input/event* devices.
         """
         device_node = device.device_node
         if not device_node or not device_node.startswith("/dev/input/event"):
             return
 
         if action == "add":
-            _logger.debug(f"UdevEventMonitor: Added => {device_node}")
+            _logger.debug(f"UdevEventMonitor: Added input => {device_node}")
             self.relay_controller.add_device(device_node)
         elif action == "remove":
-            _logger.debug(f"UdevEventMonitor: Removed => {device_node}")
+            _logger.debug(f"UdevEventMonitor: Removed input => {device_node}")
             self.relay_controller.remove_device(device_node)
+
+    def _udev_event_callback_gadget(self, action: str, device: pyudev.Device) -> None:
+        """
+        Watches for /dev/hidgN under usbmisc. If removed, it usually
+        means the USB cable is unplugged or the gadget is no longer active.
+        """
+        device_node = device.device_node
+        if not device_node or "hidg" not in device_node:
+            return
+
+        if action == "add":
+            _logger.info(f"Gadget device re-added: {device_node}. Re-enabling gadgets.")
+            try:
+                self.gadget_manager.enable_gadgets()
+            except Exception as e:
+                _logger.warning(f"Failed to re-enable gadgets: {e}")
+
+            self.relay_active_event.set()
+            _logger.info("Relay resumed because USB gadget re-appeared.")
+
+        elif action == "remove":
+            _logger.warning(f"Gadget device removed: {device_node}. Pausing relay.")
+            self.relay_active_event.clear()
