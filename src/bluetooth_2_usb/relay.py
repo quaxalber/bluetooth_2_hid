@@ -663,23 +663,10 @@ class UdcStateMonitor:
         _logger.debug(f"UDC state changed to '{new_state}'")
 
         if new_state == "configured":
-            try:
-                self._gadget_manager.enable_gadgets()
-                _logger.debug("Gadgets re-enabled because host is connected.")
-            except Exception as exc:
-                _logger.error(f"Failed to re-enable gadgets: {exc}")
-
+            _logger.debug("Host connected. Resuming relay.")
             self._relay_active_event.set()
-
         else:
-            _logger.warning(
-                "Host appears disconnected. Disabling gadgets and pausing relay."
-            )
-            try:
-                usb_hid.disable()
-            except Exception as exc:
-                _logger.debug(f"usb_hid.disable() encountered error: {exc}")
-
+            _logger.debug("Host appears disconnected. Pausing relay.")
             self._relay_active_event.clear()
 
 
