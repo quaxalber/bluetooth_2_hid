@@ -534,7 +534,6 @@ def relay_event(event: InputEvent, gadget_manager: GadgetManager) -> None:
 def move_mouse(event: RelEvent, gadget_manager: GadgetManager) -> None:
     """
     Relay relative movement events to the USB HID Mouse gadget.
-    Raises BlockingIOError if the HID write cannot be completed.
     """
     mouse = gadget_manager.get_mouse()
     if mouse is None:
@@ -542,21 +541,14 @@ def move_mouse(event: RelEvent, gadget_manager: GadgetManager) -> None:
 
     x, y, mwheel = get_mouse_movement(event)
     coords = f"(x={x}, y={y}, mwheel={mwheel})"
-
-    try:
-        _logger.debug(f"Moving mouse {coords}")
-        mouse.move(x, y, mwheel)
-    except BlockingIOError:
-        raise
-    except Exception:
-        _logger.exception(f"Failed moving mouse {coords}")
+    _logger.debug(f"Moving mouse {coords}")
+    mouse.move(x, y, mwheel)
 
 
 def send_key_event(event: KeyEvent, gadget_manager: GadgetManager) -> None:
     """
     Relay key press/release events to the appropriate USB HID gadget
     (keyboard, mouse-button, or consumer control).
-    Raises BlockingIOError if the HID write cannot be completed.
     """
     key_id, key_name = evdev_to_usb_hid(event)
     if key_id is None or key_name is None:
@@ -566,17 +558,12 @@ def send_key_event(event: KeyEvent, gadget_manager: GadgetManager) -> None:
     if output_gadget is None:
         raise RuntimeError("No appropriate USB gadget found (manager not enabled?).")
 
-    try:
-        if event.keystate == KeyEvent.key_down:
-            _logger.debug(f"Pressing {key_name} (0x{key_id:02X})")
-            output_gadget.press(key_id)
-        elif event.keystate == KeyEvent.key_up:
-            _logger.debug(f"Releasing {key_name} (0x{key_id:02X})")
-            output_gadget.release(key_id)
-    except BlockingIOError:
-        raise
-    except Exception:
-        _logger.exception(f"Failed sending 0x{key_id:02X} to {output_gadget}")
+    if event.keystate == KeyEvent.key_down:
+        _logger.debug(f"Pressing {key_name} (0x{key_id:02X})")
+        output_gadget.press(key_id)
+    elif event.keystate == KeyEvent.key_up:
+        _logger.debug(f"Releasing {key_name} (0x{key_id:02X})")
+        output_gadget.release(key_id)
 
 
 def get_output_device(
@@ -595,64 +582,141 @@ def get_output_device(
     return gadget_manager.get_keyboard()
 
 
+class UdcStateMonitor:
+    """
+    Periodically checks /sys/class/udc/<controller>/state to detect whether
+    the USB is "configured" by the host or not. On change:
+      - If it becomes "configured": re-enable HID gadgets, set relay_active_event
+      - Otherwise: disable gadgets, clear relay_active_event
+    """
+
+    def __init__(
+        self,
+        gadget_manager: "GadgetManager",
+        relay_active_event: asyncio.Event,
+        udc_path: str = "/sys/class/udc/20980000.usb/state",
+        poll_interval: float = 0.5,
+    ):
+        """
+        Args:
+          gadget_manager: your GadgetManager for enabling/disabling HID
+          relay_active_event: the event controlling whether we forward events
+          udc_path: path to the "state" file for your UDC (e.g. /sys/class/udc/<whatever>/state)
+          poll_interval: how often (seconds) to poll for changes
+        """
+        self._gadget_manager = gadget_manager
+        self._relay_active_event = relay_active_event
+        self.udc_path = udc_path
+        self.poll_interval = poll_interval
+
+        self._stop = False
+        self._task: asyncio.Task | None = None
+        self._last_state: str | None = None
+
+        if not Path(self.udc_path).is_file():
+            _logger.warning(
+                f"UDC state file {self.udc_path} not found. Cable monitoring may not work."
+            )
+
+    def __enter__(self):
+        loop = asyncio.get_event_loop()
+        self._stop = False
+        self._task = loop.create_task(self._poll_state())
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._task is not None:
+            self._stop = True
+            self._task.cancel()
+        return False
+
+    async def _poll_state(self):
+        """
+        Periodically read the UDC "state" file, detect transitions to/from "configured",
+        and enable/disable the gadgets accordingly.
+        """
+        while not self._stop:
+            new_state = self._read_udc_state()
+            if new_state != self._last_state:
+                self._handle_state_change(new_state)
+                self._last_state = new_state
+
+            await asyncio.sleep(self.poll_interval)
+
+    def _read_udc_state(self) -> str:
+        """
+        Read the contents of the UDC state file, e.g. "configured", "not attached", etc.
+        If file not found, treat as "not attached."
+        """
+        try:
+            with open(self.udc_path, "r") as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return "not_attached"
+
+    def _handle_state_change(self, new_state: str):
+        """
+        Called whenever the state changes from the last known state.
+        If new_state is "configured", we re-enable gadgets and set the event.
+        Otherwise, we disable gadgets and clear the event.
+        """
+        _logger.info(f"UDC state changed to '{new_state}'")
+
+        if new_state == "configured":
+            try:
+                self._gadget_manager.enable_gadgets()
+                _logger.info("Gadgets re-enabled because host is connected.")
+            except Exception as exc:
+                _logger.error(f"Failed to re-enable gadgets: {exc}")
+
+            self._relay_active_event.set()
+            _logger.info("Relay resumed.")
+
+        else:
+            _logger.warning(
+                "Host appears disconnected. Disabling gadgets and pausing relay."
+            )
+            try:
+                usb_hid.disable()
+            except Exception as exc:
+                _logger.debug(f"usb_hid.disable() encountered error: {exc}")
+
+            self._relay_active_event.clear()
+
+
 class UdevEventMonitor:
     """
-    Watches for new/removed /dev/input/event* devices and also watches
-    for the gadget device(s) /dev/hidg* to automatically pause the relay
-    if the USB cable is disconnected and notifies RelayController.
-    Provides a context manager interface to ensure graceful startup and shutdown.
+    Watches for new/removed /dev/input/event* devices and notifies RelayController.
     """
 
     def __init__(
         self,
         relay_controller: "RelayController",
-        gadget_manager: "GadgetManager",
         loop: asyncio.AbstractEventLoop,
-        relay_active_event: asyncio.Event,
     ) -> None:
         self.relay_controller = relay_controller
-        self.gadget_manager = gadget_manager
         self.loop = loop
-        self.relay_active_event = relay_active_event
 
         self.context = pyudev.Context()
-
         self.monitor_input = pyudev.Monitor.from_netlink(self.context)
         self.monitor_input.filter_by("input")
         self.observer_input = pyudev.MonitorObserver(
             self.monitor_input, self._udev_event_callback_input
         )
 
-        self.monitor_gadget = pyudev.Monitor.from_netlink(self.context)
-        self.monitor_gadget.filter_by("usbmisc")
-        self.monitor_gadget.filter_by("hid")
-        self.observer_gadget = pyudev.MonitorObserver(
-            self.monitor_gadget, self._udev_event_callback_gadget
-        )
-
         _logger.debug("UdevEventMonitor initialized.")
 
-    def __enter__(self) -> "UdevEventMonitor":
+    def __enter__(self):
         self.observer_input.start()
-        self.observer_gadget.start()
-        _logger.debug("UdevEventMonitor started both observers.")
+        _logger.debug("UdevEventMonitor started observer.")
         return self
 
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> bool:
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.observer_input.stop()
-        self.observer_gadget.stop()
-        _logger.debug("UdevEventMonitor stopped both observers.")
-        return False  # Do not suppress exceptions
+        _logger.debug("UdevEventMonitor stopped observer.")
+        return False
 
     def _udev_event_callback_input(self, action: str, device: pyudev.Device) -> None:
-        """
-        Callback for new/removed /dev/input/event* devices.
-        """
         device_node = device.device_node
         if not device_node or not device_node.startswith("/dev/input/event"):
             return
@@ -663,26 +727,3 @@ class UdevEventMonitor:
         elif action == "remove":
             _logger.debug(f"UdevEventMonitor: Removed input => {device_node}")
             self.relay_controller.remove_device(device_node)
-
-    def _udev_event_callback_gadget(self, action: str, device: pyudev.Device) -> None:
-        """
-        Watches for /dev/hidgN under usbmisc. If removed, it usually
-        means the USB cable is unplugged or the gadget is no longer active.
-        """
-        device_node = device.device_node
-        if not device_node or "hidg" not in device_node:
-            return
-
-        if action == "add":
-            _logger.info(f"Gadget device re-added: {device_node}. Re-enabling gadgets.")
-            try:
-                self.gadget_manager.enable_gadgets()
-            except Exception as e:
-                _logger.warning(f"Failed to re-enable gadgets: {e}")
-
-            self.relay_active_event.set()
-            _logger.info("Relay resumed because USB gadget re-appeared.")
-
-        elif action == "remove":
-            _logger.warning(f"Gadget device removed: {device_node}. Pausing relay.")
-            self.relay_active_event.clear()

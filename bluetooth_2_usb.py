@@ -1,6 +1,7 @@
 import asyncio
 import atexit
 from logging import DEBUG
+from pathlib import Path
 import signal
 import sys
 
@@ -12,6 +13,7 @@ from src.bluetooth_2_usb.relay import (
     GadgetManager,
     RelayController,
     ShortcutToggler,
+    UdcStateMonitor,
     UdevEventMonitor,
     async_list_input_devices,
 )
@@ -87,11 +89,21 @@ async def main() -> None:
 
     event_loop = asyncio.get_event_loop()
 
-    with UdevEventMonitor(
-        relay_controller=relay_controller,
-        gadget_manager=gadget_manager,
-        loop=event_loop,
-        relay_active_event=relay_active_event,
+    udc_state_file = get_udc_path()
+    if udc_state_file is None:
+        logger.error("No UDC detected! USB Gadget mode may not be enabled.")
+        return
+
+    logger.debug(f"Detected UDC state file: {udc_state_file}")
+
+    with (
+        UdevEventMonitor(relay_controller, event_loop),
+        UdcStateMonitor(
+            gadget_manager=gadget_manager,
+            relay_active_event=relay_active_event,
+            udc_path=udc_state_file,
+            poll_interval=0.5,
+        ),
     ):
         relay_task = asyncio.create_task(relay_controller.async_relay_devices())
 
@@ -174,6 +186,24 @@ def validate_shortcut(shortcut: list[str]) -> set[str]:
         valid_keys.add(key_name)
 
     return valid_keys
+
+
+def get_udc_path() -> Path | None:
+    """
+    Dynamically finds the UDC state file for the USB Device Controller.
+    Returns the full path to the "state" file or None if no UDC is found.
+    """
+    udc_root = Path("/sys/class/udc")
+
+    if not udc_root.exists() or not udc_root.is_dir():
+        return None
+
+    controllers = [entry for entry in udc_root.iterdir() if entry.is_dir()]
+
+    if not controllers:
+        return None
+
+    return controllers[0] / "state"
 
 
 if __name__ == "__main__":
