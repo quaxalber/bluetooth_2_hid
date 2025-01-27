@@ -660,17 +660,16 @@ class UdcStateMonitor:
         If new_state is "configured", we re-enable gadgets and set the event.
         Otherwise, we disable gadgets and clear the event.
         """
-        _logger.info(f"UDC state changed to '{new_state}'")
+        _logger.debug(f"UDC state changed to '{new_state}'")
 
         if new_state == "configured":
             try:
                 self._gadget_manager.enable_gadgets()
-                _logger.info("Gadgets re-enabled because host is connected.")
+                _logger.debug("Gadgets re-enabled because host is connected.")
             except Exception as exc:
                 _logger.error(f"Failed to re-enable gadgets: {exc}")
 
             self._relay_active_event.set()
-            _logger.info("Relay resumed.")
 
         else:
             _logger.warning(
