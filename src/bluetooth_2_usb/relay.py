@@ -586,13 +586,12 @@ class UdcStateMonitor:
     """
     Periodically checks /sys/class/udc/<controller>/state to detect whether
     the USB is "configured" by the host or not. On change:
-      - If it becomes "configured": re-enable HID gadgets, set relay_active_event
-      - Otherwise: disable gadgets, clear relay_active_event
+      - If it becomes "configured": set relay_active_event
+      - Otherwise: clear relay_active_event
     """
 
     def __init__(
         self,
-        gadget_manager: "GadgetManager",
         relay_active_event: asyncio.Event,
         udc_path: str = "/sys/class/udc/20980000.usb/state",
         poll_interval: float = 0.5,
@@ -604,7 +603,6 @@ class UdcStateMonitor:
           udc_path: path to the "state" file for your UDC (e.g. /sys/class/udc/<whatever>/state)
           poll_interval: how often (seconds) to poll for changes
         """
-        self._gadget_manager = gadget_manager
         self._relay_active_event = relay_active_event
         self.udc_path = udc_path
         self.poll_interval = poll_interval

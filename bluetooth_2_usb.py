@@ -89,21 +89,16 @@ async def main() -> None:
 
     event_loop = asyncio.get_event_loop()
 
-    udc_state_file = get_udc_path()
-    if udc_state_file is None:
+    udc_path = get_udc_path()
+    if udc_path is None:
         logger.error("No UDC detected! USB Gadget mode may not be enabled.")
         return
 
-    logger.debug(f"Detected UDC state file: {udc_state_file}")
+    logger.debug(f"Detected UDC state file: {udc_path}")
 
     with (
         UdevEventMonitor(relay_controller, event_loop),
-        UdcStateMonitor(
-            gadget_manager=gadget_manager,
-            relay_active_event=relay_active_event,
-            udc_path=udc_state_file,
-            poll_interval=0.5,
-        ),
+        UdcStateMonitor(relay_active_event=relay_active_event, udc_path=udc_path),
     ):
         relay_task = asyncio.create_task(relay_controller.async_relay_devices())
 
