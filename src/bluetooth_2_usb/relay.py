@@ -593,14 +593,13 @@ class UdcStateMonitor:
     def __init__(
         self,
         relay_active_event: asyncio.Event,
-        udc_path: str = "/sys/class/udc/20980000.usb/state",
+        udc_path: Path = Path("/sys/class/udc/20980000.usb/state"),
         poll_interval: float = 0.5,
     ):
         """
         Args:
-          gadget_manager: your GadgetManager for enabling/disabling HID
           relay_active_event: the event controlling whether we forward events
-          udc_path: path to the "state" file for your UDC (e.g. /sys/class/udc/<whatever>/state)
+          udc_path: path to the "state" file for your UDC (e.g. /sys/class/udc/<controller>/state)
           poll_interval: how often (seconds) to poll for changes
         """
         self._relay_active_event = relay_active_event
@@ -611,7 +610,7 @@ class UdcStateMonitor:
         self._task: asyncio.Task | None = None
         self._last_state: str | None = None
 
-        if not Path(self.udc_path).is_file():
+        if not self.udc_path.is_file():
             _logger.warning(
                 f"UDC state file {self.udc_path} not found. Cable monitoring may not work."
             )
