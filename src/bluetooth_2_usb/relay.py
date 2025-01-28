@@ -97,6 +97,7 @@ class ShortcutToggler:
         self,
         shortcut_keys: set[str],
         relaying_active: asyncio.Event,
+        gadget_manager: "GadgetManager",
     ) -> None:
         """
         Args:
@@ -106,9 +107,9 @@ class ShortcutToggler:
         """
         self.shortcut_keys = shortcut_keys
         self.relay_active_event = relaying_active
+        self.gadget_manager = gadget_manager
 
         self.currently_pressed: set[str] = set()
-        self.shortcut_triggered = False
 
     def handle_key_event(self, event: KeyEvent) -> None:
         """
@@ -124,19 +125,18 @@ class ShortcutToggler:
             if key_name in self.currently_pressed:
                 self.currently_pressed.remove(key_name)
 
-            if key_name in self.shortcut_keys:
-                self.shortcut_triggered = False
-
         if self.shortcut_keys and self.shortcut_keys.issubset(self.currently_pressed):
-            if not self.shortcut_triggered:
-                self.shortcut_triggered = True
-                self.toggle_relaying()
+            self.toggle_relaying()
 
     def toggle_relaying(self) -> None:
         """
         Toggle the global relaying state: if it was on, turn it off, and vice versa.
         """
         if self.relay_active_event.is_set():
+            self.gadget_manager.get_keyboard().release_all()
+            self.gadget_manager.get_mouse().release_all()
+            self.currently_pressed.clear()
+
             self.relay_active_event.clear()
             _logger.info("ShortcutToggler: Relaying is now OFF.")
         else:

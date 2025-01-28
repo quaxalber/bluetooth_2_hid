@@ -67,16 +67,20 @@ async def main() -> None:
     relay_active_event = asyncio.Event()
     relay_active_event.set()
 
+    gadget_manager = GadgetManager()
+    gadget_manager.enable_gadgets()
+
     shortcut_toggler = None
     if args.interrupt_shortcut:
         shortcut_keys = validate_shortcut(args.interrupt_shortcut)
         if shortcut_keys:
             logger.debug(f"Configuring global interrupt shortcut: {shortcut_keys}")
 
-            shortcut_toggler = ShortcutToggler(shortcut_keys, relay_active_event)
-
-    gadget_manager = GadgetManager()
-    gadget_manager.enable_gadgets()
+            shortcut_toggler = ShortcutToggler(
+                shortcut_keys=shortcut_keys,
+                relay_active_event=relay_active_event,
+                gadget_manager=gadget_manager,
+            )
 
     relay_controller = RelayController(
         gadget_manager=gadget_manager,
