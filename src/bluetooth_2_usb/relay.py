@@ -106,7 +106,7 @@ class ShortcutToggler:
                 If .is_set(), relaying is ON; if .is_clear(), relaying is OFF.
         """
         self.shortcut_keys = shortcut_keys
-        self.relay_active_event = relaying_active
+        self.relaying_active = relaying_active
         self.gadget_manager = gadget_manager
 
         self.currently_pressed: set[str] = set()
@@ -132,15 +132,15 @@ class ShortcutToggler:
         """
         Toggle the global relaying state: if it was on, turn it off, and vice versa.
         """
-        if self.relay_active_event.is_set():
+        if self.relaying_active.is_set():
             self.gadget_manager.get_keyboard().release_all()
             self.gadget_manager.get_mouse().release_all()
             self.currently_pressed.clear()
 
-            self.relay_active_event.clear()
+            self.relaying_active.clear()
             _logger.info("ShortcutToggler: Relaying is now OFF.")
         else:
-            self.relay_active_event.set()
+            self.relaying_active.set()
             _logger.info("ShortcutToggler: Relaying is now ON.")
 
 
@@ -162,7 +162,7 @@ class RelayController:
         grab_devices: bool = False,
         max_blockingio_retries: int = 2,
         blockingio_retry_delay: float = 0.01,
-        relay_active_event: Optional[asyncio.Event] = None,
+        relaying_active: Optional[asyncio.Event] = None,
         shortcut_toggler: Optional["ShortcutToggler"] = None,
     ) -> None:
         """
@@ -186,7 +186,7 @@ class RelayController:
         self._auto_discover = auto_discover
         self._skip_name_prefixes = skip_name_prefixes or ["vc4-hdmi"]
         self._grab_devices = grab_devices
-        self._relay_active_event = relay_active_event
+        self._relaying_active = relaying_active
         self._shortcut_toggler = shortcut_toggler
 
         self._max_blockingio_retries = max_blockingio_retries
@@ -273,7 +273,7 @@ class RelayController:
                 grab_device=self._grab_devices,
                 max_blockingio_retries=self._max_blockingio_retries,
                 blockingio_retry_delay=self._blockingio_retry_delay,
-                relay_active_event=self._relay_active_event,
+                relaying_active=self._relaying_active,
                 shortcut_toggler=self._shortcut_toggler,
             ) as relay:
                 _logger.info(f"Activated {relay}")
@@ -321,7 +321,7 @@ class DeviceRelay:
         grab_device: bool = False,
         max_blockingio_retries: int = 2,
         blockingio_retry_delay: float = 0.01,
-        relay_active_event: Optional[asyncio.Event] = None,
+        relaying_active: Optional[asyncio.Event] = None,
         shortcut_toggler: Optional["ShortcutToggler"] = None,
     ) -> None:
         """
@@ -337,7 +337,7 @@ class DeviceRelay:
         self._grab_device = grab_device
         self._max_blockingio_retries = max_blockingio_retries
         self._blockingio_retry_delay = blockingio_retry_delay
-        self._relay_active_event = relay_active_event
+        self._relaying_active = relaying_active
         self._shortcut_toggler = shortcut_toggler
 
         self._currently_grabbed = False
@@ -389,7 +389,7 @@ class DeviceRelay:
             if self._shortcut_toggler and isinstance(event, KeyEvent):
                 self._shortcut_toggler.handle_key_event(event)
 
-            active = self._relay_active_event and self._relay_active_event.is_set()
+            active = self._relaying_active and self._relaying_active.is_set()
 
             if self._grab_device and active and not self._currently_grabbed:
                 try:
@@ -442,8 +442,8 @@ class DeviceRelay:
                     See: https://github.com/quaxalber/bluetooth_2_usb?tab=readme-ov-file#7-troubleshooting
                     """
                 )
-                if self._relay_active_event:
-                    self._relay_active_event.clear()
+                if self._relaying_active:
+                    self._relaying_active.clear()
                 return
 
 
@@ -586,23 +586,23 @@ class UdcStateMonitor:
     """
     Periodically checks /sys/class/udc/<controller>/state to detect whether
     the USB is "configured" by the host or not. On change:
-      - If it becomes "configured": set relay_active_event
-      - Otherwise: clear relay_active_event
+      - If it becomes "configured": set relaying_active
+      - Otherwise: clear relaying_active
     """
 
     def __init__(
         self,
-        relay_active_event: asyncio.Event,
+        relaying_active: asyncio.Event,
         udc_path: Path = Path("/sys/class/udc/20980000.usb/state"),
         poll_interval: float = 0.5,
     ):
         """
         Args:
-          relay_active_event: the event controlling whether we forward events
+          relaying_active: the event controlling whether we forward events
           udc_path: path to the "state" file for your UDC (e.g. /sys/class/udc/<controller>/state)
           poll_interval: how often (seconds) to poll for changes
         """
-        self._relay_active_event = relay_active_event
+        self._relaying_active = relaying_active
         self.udc_path = udc_path
         self.poll_interval = poll_interval
 
@@ -661,10 +661,10 @@ class UdcStateMonitor:
 
         if new_state == "configured":
             _logger.debug("Host connected. Resuming relay.")
-            self._relay_active_event.set()
+            self._relaying_active.set()
         else:
             _logger.debug("Host appears disconnected. Pausing relay.")
-            self._relay_active_event.clear()
+            self._relaying_active.clear()
 
 
 class UdevEventMonitor:

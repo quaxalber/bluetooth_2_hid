@@ -64,8 +64,8 @@ async def main() -> None:
     logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
-    relay_active_event = asyncio.Event()
-    relay_active_event.set()
+    relaying_active = asyncio.Event()
+    relaying_active.set()
 
     gadget_manager = GadgetManager()
     gadget_manager.enable_gadgets()
@@ -78,7 +78,7 @@ async def main() -> None:
 
             shortcut_toggler = ShortcutToggler(
                 shortcut_keys=shortcut_keys,
-                relay_active_event=relay_active_event,
+                relaying_active=relaying_active,
                 gadget_manager=gadget_manager,
             )
 
@@ -87,7 +87,7 @@ async def main() -> None:
         device_identifiers=args.device_ids,
         auto_discover=args.auto_discover,
         grab_devices=args.grab_devices,
-        relay_active_event=relay_active_event,
+        relaying_active=relaying_active,
         shortcut_toggler=shortcut_toggler,
     )
 
@@ -102,7 +102,7 @@ async def main() -> None:
 
     with (
         UdevEventMonitor(relay_controller, event_loop),
-        UdcStateMonitor(relay_active_event=relay_active_event, udc_path=udc_path),
+        UdcStateMonitor(relaying_active=relaying_active, udc_path=udc_path),
     ):
         relay_task = asyncio.create_task(relay_controller.async_relay_devices())
 
