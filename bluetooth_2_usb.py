@@ -27,7 +27,8 @@ shutdown_event = asyncio.Event()
 
 def signal_handler(sig, frame):
     """
-    Signal handler that triggers graceful shutdown.
+    Handles OS signals (SIGINT, SIGTERM, SIGQUIT, etc.) by setting
+    a global shutdown event that triggers graceful shutdown.
     """
     sig_name = signal.Signals(sig).name
     logger.debug(f"Received signal: {sig_name}. Requesting graceful shutdown.")
@@ -40,18 +41,16 @@ for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
 
 async def main() -> None:
     """
-    Entry point for Bluetooth 2 USB.
+    Entrypoint that:
 
-    This function:
-
-    1. Parses command-line arguments.
-    2. Sets up logging.
-    3. Configures and enables USB HID gadgets.
-    4. Initiates asynchronous monitoring of input devices (udev) and USB state (UDC).
-    5. Manages overall relay activation via two conditions:
-       - At least one input device is present.
-       - The USB gadget is “configured” by the host.
-    6. Waits for a shutdown signal and then gracefully stops.
+    - Parses command-line arguments.
+    - Sets up logging.
+    - Enables USB HID gadgets.
+    - Configures a global ``relaying_active`` event that is
+      toggled by ``UdcStateMonitor`` when the UDC is configured.
+    - Creates a TaskGroup to manage device-relay tasks.
+    - Registers monitors for udev and UDC state changes.
+    - Waits for a shutdown signal to terminate gracefully.
     """
     args = parse_args()
 
@@ -64,26 +63,21 @@ async def main() -> None:
     if args.list_devices:
         await async_list_devices()
 
-    _setup_logging(args)
+    log_handlers_message = "Logging to stdout"
+    if args.log_to_file:
+        try:
+            add_file_handler(args.log_path)
+        except OSError as e:
+            logger.error(f"Could not open log file '{args.log_path}' for writing: {e}")
+            sys.exit(1)
+        log_handlers_message += f" and to {args.log_path}"
+
+    logger.debug(f"CLI args: {args}")
+    logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
-    # We'll coordinate relaying via three Events:
-    #   - devices_found_event: set when at least one device is active
-    #   - udc_configured_event: set when /sys/class/udc/... says "configured"
-    #   - relaying_active: combined event that is set only if both the above are set
-    devices_found_event = asyncio.Event()
-    udc_configured_event = asyncio.Event()
+    # This event is only set once the UDC is "configured" (via UdcStateMonitor)
     relaying_active = asyncio.Event()
-
-    def update_relaying():
-        """
-        Sets or clears `relaying_active` based on the states of
-        `devices_found_event` and `udc_configured_event`.
-        """
-        if devices_found_event.is_set() and udc_configured_event.is_set():
-            relaying_active.set()
-        else:
-            relaying_active.clear()
 
     gadget_manager = GadgetManager()
     gadget_manager.enable_gadgets()
@@ -105,8 +99,6 @@ async def main() -> None:
         auto_discover=args.auto_discover,
         grab_devices=args.grab_devices,
         relaying_active=relaying_active,
-        devices_found_event=devices_found_event,
-        update_relaying_callback=update_relaying,
         shortcut_toggler=shortcut_toggler,
     )
 
@@ -117,45 +109,43 @@ async def main() -> None:
 
     logger.debug(f"Detected UDC state file: {udc_path}")
 
-    # Create tasks within a single TaskGroup, then simultaneously monitor:
-    #   - Udev events for input add/remove
-    #   - UDC state transitions
-    #   - The actual device-relay tasks
-    async with (
-        asyncio.TaskGroup() as task_group,
-        UdevEventMonitor(relay_controller) as _,
-        UdcStateMonitor(
-            udc_configured_event=udc_configured_event,
-            update_relaying_callback=update_relaying,
-            udc_path=udc_path,
-        ) as _,
-    ):
-        relay_controller.start_relaying(task_group)
+    try:
+        async with asyncio.TaskGroup() as tg:
+            relay_controller.bind_task_group(tg)
 
-        await shutdown_event.wait()
-        logger.debug("Shutdown event triggered. Letting TaskGroup exit...")
+            async with (
+                UdevEventMonitor(relay_controller) as udev_monitor,
+                UdcStateMonitor(relaying_active, udc_path=udc_path) as udc_monitor,
+            ):
+                await relay_controller.load_initial_devices()
 
-    logger.debug("Main function exit. All tasks cancelled or completed.")
+                await shutdown_event.wait()
+                logger.debug("Shutdown event triggered.")
+    except Exception as exc:
+        logger.exception(
+            "Unhandled exception encountered. Aborting mission.", exc_info=exc
+        )
+        sys.exit(1)
 
 
 async def async_list_devices():
     """
-    Prints a list of available input devices and exits.
+    Prints a list of available input devices for the ``--list-devices`` CLI argument.
 
-    :raises SystemExit: Always exits after listing devices.
+    :return: None. Prints and exits.
     """
-    all_devices = await async_list_input_devices()
-    for dev in all_devices:
-        descriptor = dev.uniq if dev.uniq else dev.phys
-        print(f"{dev.name}\t{descriptor}\t{dev.path}")
+    devices = await async_list_input_devices()
+    for dev in devices:
+        uniq_or_phys = dev.uniq if dev.uniq else dev.phys
+        print(f"{dev.name}\t{uniq_or_phys}\t{dev.path}")
     exit_safely()
 
 
 def print_version():
     """
-    Prints the version of Bluetooth 2 USB and exits.
+    Prints the version of Bluetooth 2 USB.
 
-    :raises SystemExit: Always exits after printing version.
+    :return: None. Prints and exits.
     """
     print(VERSIONED_NAME)
     exit_safely()
@@ -163,44 +153,26 @@ def print_version():
 
 def exit_safely():
     """
-    Unregisters usb_hid.disable() from atexit and exits the script.
+    Unregisters the ``usb_hid.disable()`` atexit handler and exits,
+    to avoid errors if the script is invoked while already running (e.g. as a service).
 
-    This avoids an exception if the script is already running
-    (e.g., as a systemd service) and usb_hid.disable() is called again.
+    :return: None. Exits the Python process.
     """
     atexit.unregister(usb_hid.disable)
     sys.exit(0)
 
 
-def _setup_logging(args):
-    """
-    Sets up logging destinations based on CLI arguments.
-
-    :param args: Parsed CLI arguments.
-    :type args: argparse.Namespace
-    """
-    log_handlers_message = "Logging to stdout"
-    if args.log_to_file:
-        try:
-            add_file_handler(args.log_path)
-        except OSError as e:
-            logger.error(f"Could not open log file '{args.log_path}' for writing: {e}")
-            sys.exit(1)
-        log_handlers_message += f" and to {args.log_path}"
-
-    logger.debug(f"CLI args: {args}")
-    logger.debug(log_handlers_message)
-
-
 def validate_shortcut(shortcut: list[str]) -> set[str]:
     """
-    Converts a list of raw key strings (e.g. ["SHIFT", "CTRL", "Q"]) into
-    a set of valid evdev-style names (e.g. {"KEY_LEFTSHIFT", "KEY_LEFTCTRL", "KEY_Q"}).
+    Converts a list of raw key strings (e.g. ``["SHIFT", "CTRL", "Q"]``)
+    into a set of valid evdev-style names (e.g. ``{"KEY_LEFTSHIFT", "KEY_LEFTCTRL", "KEY_Q"}``).
 
-    :param shortcut: List of shortcut key strings.
-    :type shortcut: list[str]
-    :return: A set of normalized evdev key names, or empty set if none were valid.
-    :rtype: set[str]
+    - Uppercases each entry.
+    - Maps certain known aliases (e.g. SHIFT -> LEFTSHIFT).
+    - Ensures the final string starts with ``KEY_``.
+
+    :param shortcut: List of string key names.
+    :return: A set of normalized key names suitable for evdev -> USB HID mapping.
     """
     ALIAS_MAP = {
         "SHIFT": "LEFTSHIFT",
@@ -222,11 +194,7 @@ def validate_shortcut(shortcut: list[str]) -> set[str]:
         key_upper = raw_key.strip().upper()
         if key_upper in ALIAS_MAP:
             key_upper = ALIAS_MAP[key_upper]
-        key_name = (
-            key_upper
-            if key_upper.startswith("KEY_") or key_upper.startswith("BTN_")
-            else f"KEY_{key_upper}"
-        )
+        key_name = key_upper if key_upper.startswith("KEY_") else f"KEY_{key_upper}"
         valid_keys.add(key_name)
 
     return valid_keys
@@ -234,11 +202,10 @@ def validate_shortcut(shortcut: list[str]) -> set[str]:
 
 def get_udc_path() -> Path | None:
     """
-    Dynamically finds the UDC state file for the USB Device Controller,
-    returning the full path to the "state" file or None if no UDC is found.
+    Dynamically finds the UDC state file for the USB Device Controller.
+    Returns the full path to the ``state`` file or None if no UDC is found.
 
-    :return: Path to the UDC state file, or None if not found.
-    :rtype: pathlib.Path | None
+    :return: Path to the UDC's ``state`` file, or None if unavailable.
     """
     udc_root = Path("/sys/class/udc")
 
@@ -254,10 +221,10 @@ def get_udc_path() -> Path | None:
 
 if __name__ == "__main__":
     """
-    CLI entry point for the script.
+    Entry point for the script when run directly.
     """
     try:
         asyncio.run(main())
     except Exception:
-        logger.exception("Unhandled exception encountered. Aborting.")
+        logger.exception("Unhandled exception during startup.")
         sys.exit(1)
