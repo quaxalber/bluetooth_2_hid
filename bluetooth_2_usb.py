@@ -123,12 +123,12 @@ async def main() -> None:
     #   - The actual device-relay tasks
     async with (
         asyncio.TaskGroup() as task_group,
-        UdevEventMonitor(relay_controller),
+        UdevEventMonitor(relay_controller) as _,
         UdcStateMonitor(
             udc_configured_event=udc_configured_event,
             update_relaying_callback=update_relaying,
             udc_path=udc_path,
-        ),
+        ) as _,
     ):
         relay_controller.start_relaying(task_group)
 
