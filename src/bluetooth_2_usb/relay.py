@@ -372,6 +372,7 @@ class DeviceRelay:
 
         :return: Always False.
         """
+        self._input_device.close()
         if self._grab_device:
             try:
                 self._input_device.ungrab()
