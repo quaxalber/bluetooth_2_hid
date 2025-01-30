@@ -395,12 +395,18 @@ class DeviceRelay:
         async for input_event in self._input_device.async_read_loop():
             event = categorize(input_event)
 
+            if any(
+                isinstance(event, event_type) for event_type in [KeyEvent, RelEvent]
+            ):
+                _logger.debug(
+                    f"Received {event} from {self._input_device.name} ({self._input_device.path})"
+                )
+
             if self._shortcut_toggler and isinstance(event, KeyEvent):
                 self._shortcut_toggler.handle_key_event(event)
 
             active = self._relaying_active.is_set() if self._relaying_active else True
 
-            # Grab/ungrab device if relaying state changes
             if self._grab_device and active and not self._currently_grabbed:
                 try:
                     self._input_device.grab()
@@ -419,8 +425,6 @@ class DeviceRelay:
 
             if not active:
                 continue
-
-            _logger.debug(f"Received {event} from {self._input_device.name}")
 
             await self._process_event_with_retry(event)
 
@@ -584,10 +588,10 @@ def send_key_event(event: KeyEvent, gadget_manager: GadgetManager) -> None:
         raise RuntimeError("No appropriate USB gadget found.")
 
     if event.keystate == KeyEvent.key_down:
-        _logger.debug(f"Pressing {key_name} (0x{key_id:02X})")
+        _logger.debug(f"Pressing {key_name} (0x{key_id:02X}) on {output_gadget}")
         output_gadget.press(key_id)
     elif event.keystate == KeyEvent.key_up:
-        _logger.debug(f"Releasing {key_name} (0x{key_id:02X})")
+        _logger.debug(f"Releasing {key_name} (0x{key_id:02X}) on {output_gadget}")
         output_gadget.release(key_id)
 
 
@@ -705,10 +709,8 @@ class UdcStateMonitor:
         """
         _logger.debug(f"UDC state changed to '{new_state}'.")
         if new_state == "configured":
-            _logger.debug("Host connected. Relaying enabled.")
             self._relaying_active.set()
         else:
-            _logger.debug("Host disconnected or unconfigured. Relaying paused.")
             self._relaying_active.clear()
 
 
@@ -731,8 +733,6 @@ class UdevEventMonitor:
         self.observer_input = pyudev.MonitorObserver(
             self.monitor_input, self._udev_event_callback_input
         )
-
-        _logger.debug("UdevEventMonitor initialized.")
 
     async def __aenter__(self) -> "UdevEventMonitor":
         """
