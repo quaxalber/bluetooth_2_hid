@@ -619,6 +619,7 @@ class UdcStateMonitor:
 
     def __init__(
         self,
+        task_group: asyncio.TaskGroup,
         relaying_active: asyncio.Event,
         udc_path: Path = Path("/sys/class/udc/20980000.usb/state"),
         poll_interval: float = 0.5,
@@ -628,6 +629,7 @@ class UdcStateMonitor:
         :param udc_path: Path to the 'state' file for your UDC.
         :param poll_interval: How often to check the file for changes, in seconds.
         """
+        self._task_group = task_group
         self._relaying_active = relaying_active
         self.udc_path = udc_path
         self.poll_interval = poll_interval
@@ -648,7 +650,9 @@ class UdcStateMonitor:
         :return: This UdcStateMonitor instance.
         """
         self._stop = False
-        self._task = asyncio.create_task(self._poll_state_loop())
+        self._task = self._task_group.create_task(
+            self._poll_state_loop(), name="UdcStateMonitor"
+        )
         return self
 
     async def __aexit__(
@@ -666,6 +670,7 @@ class UdcStateMonitor:
         if self._task:
             self._task.cancel()
             await self._task
+        _logger.debug("UdcStateMonitor finished.")
         return False
 
     async def _poll_state_loop(self) -> None:

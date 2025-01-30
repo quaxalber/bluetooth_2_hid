@@ -115,7 +115,7 @@ async def main() -> None:
 
             async with (
                 UdevEventMonitor(relay_controller) as udev_monitor,
-                UdcStateMonitor(relaying_active, udc_path=udc_path) as udc_monitor,
+                UdcStateMonitor(tg, relaying_active, udc_path=udc_path) as udc_monitor,
             ):
                 await relay_controller.load_initial_devices()
 
