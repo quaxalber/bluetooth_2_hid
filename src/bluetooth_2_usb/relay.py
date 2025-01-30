@@ -665,10 +665,7 @@ class UdcStateMonitor:
         self._stop = True
         if self._task:
             self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+            await self._task
         return False
 
     async def _poll_state_loop(self) -> None:
