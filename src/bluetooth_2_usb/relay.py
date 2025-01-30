@@ -667,9 +667,8 @@ class UdcStateMonitor:
         :return: False to not suppress exceptions.
         """
         self._stop = True
-        if self._task:
+        if self._task and not self._task.done():
             self._task.cancel()
-            await self._task
         _logger.debug("UdcStateMonitor finished.")
         return False
 
