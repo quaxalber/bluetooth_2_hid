@@ -27,7 +27,8 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
     - [4.1.1. Raspberry Pi 4B/5](#411-raspberry-pi-4b5)
     - [4.1.2. Raspberry Pi Zero (2) W(H)](#412-raspberry-pi-zero-2-wh)
   - [4.2. Command-line arguments](#42-command-line-arguments)
-  - [4.3. Consuming the API from your Python code](#43-consuming-the-api-from-your-python-code)
+  - [4.3. Shortcut Feature for Quick Pi Administration](#43-shortcut-feature-for-quick-pi-administration)
+  - [4.4. Consuming the API from your Python code](#44-consuming-the-api-from-your-python-code)
 - [5. Updating](#5-updating)
 - [6. Uninstallation](#6-uninstallation)
 - [7. Troubleshooting](#7-troubleshooting)
@@ -48,7 +49,7 @@ Linux's gadget mode allows a Raspberry Pi to act as USB HID (Human Interface Dev
 - Supports [146 multimedia keys](https://github.com/quaxalber/bluetooth_2_usb/blob/8b1c5f8097bbdedfe4cef46e07686a1059ea2979/lib/evdev_adapter.py#L142) (e.g., mute, volume up/down, launch browser, etc.)
 - Auto-discovery feature for input devices
 - Auto-reconnect feature for input devices (power off, energy saving mode, out of range, etc.)
-- Pause/resume relaying input devices via configurable shortcut
+- Pause/resume relaying input devices via [configurable shortcut](#43-shortcut-feature-for-quick-pi-administration)
 - Robust error handling and logging
 - Installation as a systemd service
 - Reliable concurrency using state-of-the-art [TaskGroups](https://docs.python.org/3/library/asyncio-task.html#task-groups)
@@ -206,7 +207,11 @@ options:
   --help, -h            Show this help message and exit.
 ```
 
-### 4.3. Consuming the API from your Python code
+### 4.3. Shortcut Feature for Quick Pi Administration
+
+A key challenge when using Bluetooth 2 USB on a Raspberry Pi as systemd service is being able to temporarily disable input relaying so you can administer the Pi locally. The shortcut feature solves this by allowing you to specify a keyboard shortcut that toggles the relaying on or off at any time. For example, you might configure `CTRL` + `SHIFT` + `F12` (default set in `bluetooth_2_usb.service`) as a global interrupt shortcut. While relaying is active, pressing that key combination will instantly halt relaying, allowing the Pi to receive keyboard input locally. Pressing the same shortcut again re-enables relaying.
+
+### 4.4. Consuming the API from your Python code
 
 The API is designed such that it may be consumed both via CLI and from within external Python code. More details on this [coming soon](https://github.com/quaxalber/bluetooth_2_usb/issues/16)!
 
