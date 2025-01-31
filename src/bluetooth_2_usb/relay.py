@@ -1,5 +1,5 @@
 import asyncio
-from asyncio import CancelledError, Task, TaskGroup
+from asyncio import Task, TaskGroup
 from pathlib import Path
 import re
 from typing import Optional, Union
@@ -270,8 +270,8 @@ class RelayController:
         """
         task = self._active_tasks.pop(device_path, None)
         if task and not task.done():
-            _logger.debug(f"Cancelling relay for {device_path}.")
             task.cancel()
+            _logger.debug(f"Cancelled relay for {device_path}.")
         else:
             _logger.debug(f"No active task found for {device_path} to remove.")
 
@@ -293,9 +293,6 @@ class RelayController:
             ) as relay:
                 _logger.info(f"Activated {relay}")
                 await relay.async_relay_events_loop()
-        except CancelledError:
-            _logger.debug(f"Relay cancelled for device {device}.")
-            raise
         except (OSError, FileNotFoundError):
             _logger.info(f"Lost connection to {device}.")
         except Exception:
@@ -413,9 +410,7 @@ class DeviceRelay:
         async for input_event in self._input_device.async_read_loop():
             event = categorize(input_event)
 
-            if any(
-                isinstance(event, event_type) for event_type in [KeyEvent, RelEvent]
-            ):
+            if any(isinstance(event, ev_type) for ev_type in [KeyEvent, RelEvent]):
                 _logger.debug(
                     f"Received {event} from {self._input_device.name} ({self._input_device.path})"
                 )
