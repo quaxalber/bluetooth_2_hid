@@ -63,15 +63,6 @@ class GadgetManager:
 
         _logger.debug(f"USB HID gadgets re-initialized: {enabled_devices}")
 
-    def is_enabled(self) -> bool:
-        """
-        Check if the HID gadgets are enabled.
-
-        :return: True if enabled, False otherwise
-        :rtype: bool
-        """
-        return self._enabled
-
     def get_keyboard(self) -> Optional[Keyboard]:
         """
         Get the Keyboard gadget.
@@ -174,8 +165,6 @@ class RelayController:
         auto_discover: bool = False,
         skip_name_prefixes: Optional[list[str]] = None,
         grab_devices: bool = False,
-        max_blockingio_retries: int = 2,
-        blockingio_retry_delay: float = 0.01,
         relaying_active: Optional[asyncio.Event] = None,
         shortcut_toggler: Optional["ShortcutToggler"] = None,
     ) -> None:
@@ -185,8 +174,6 @@ class RelayController:
         :param auto_discover: If True, relays all valid input devices except those skipped
         :param skip_name_prefixes: A list of device.name prefixes to skip if auto_discover is True
         :param grab_devices: If True, the relay tries to grab exclusive access to each device
-        :param max_blockingio_retries: Number of times to retry a HID write if blocked
-        :param blockingio_retry_delay: Delay between HID write retries
         :param relaying_active: asyncio.Event to indicate if relaying is active
         :param shortcut_toggler: ShortcutToggler to allow toggling relaying globally
         """
@@ -195,8 +182,6 @@ class RelayController:
         self._auto_discover = auto_discover
         self._skip_name_prefixes = skip_name_prefixes or ["vc4-hdmi"]
         self._grab_devices = grab_devices
-        self._max_blockingio_retries = max_blockingio_retries
-        self._blockingio_retry_delay = blockingio_retry_delay
         self._relaying_active = relaying_active
         self._shortcut_toggler = shortcut_toggler
 
@@ -286,8 +271,6 @@ class RelayController:
                 device,
                 self._gadget_manager,
                 grab_device=self._grab_devices,
-                max_blockingio_retries=self._max_blockingio_retries,
-                blockingio_retry_delay=self._blockingio_retry_delay,
                 relaying_active=self._relaying_active,
                 shortcut_toggler=self._shortcut_toggler,
             ) as relay:
@@ -332,8 +315,6 @@ class DeviceRelay:
         input_device: InputDevice,
         gadget_manager: GadgetManager,
         grab_device: bool = False,
-        max_blockingio_retries: int = 2,
-        blockingio_retry_delay: float = 0.01,
         relaying_active: Optional[asyncio.Event] = None,
         shortcut_toggler: Optional["ShortcutToggler"] = None,
     ) -> None:
@@ -341,16 +322,12 @@ class DeviceRelay:
         :param input_device: The evdev input device
         :param gadget_manager: Provides references to Keyboard, Mouse, ConsumerControl
         :param grab_device: Whether to grab the device for exclusive access
-        :param max_blockingio_retries: Times to retry a blocked HID write
-        :param blockingio_retry_delay: Delay between retries
         :param relaying_active: asyncio.Event that indicates relaying is on/off
         :param shortcut_toggler: Optional handler for toggling relay via a shortcut
         """
         self._input_device = input_device
         self._gadget_manager = gadget_manager
         self._grab_device = grab_device
-        self._max_blockingio_retries = max_blockingio_retries
-        self._blockingio_retry_delay = blockingio_retry_delay
         self._relaying_active = relaying_active
         self._shortcut_toggler = shortcut_toggler
 
@@ -358,9 +335,6 @@ class DeviceRelay:
 
     def __str__(self) -> str:
         return f"relay for {self._input_device}"
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._input_device!r}, {self._grab_device})"
 
     @property
     def input_device(self) -> InputDevice:
@@ -445,26 +419,22 @@ class DeviceRelay:
     async def _process_event_with_retry(self, event: InputEvent) -> None:
         """
         Attempt to relay the given event to the appropriate HID gadget.
-        Retry on BlockingIOError up to self._max_blockingio_retries.
+        Retry on BlockingIOError up to 2 times.
 
         :param event: The InputEvent to process
         """
-        for attempt in range(self._max_blockingio_retries):
+        max_tries = 3
+        retry_delay = 0.1
+        for attempt in range(1, max_tries + 1):
             try:
                 relay_event(event, self._gadget_manager)
                 return
             except BlockingIOError:
-                if attempt < self._max_blockingio_retries - 1:
-                    _logger.debug(
-                        f"HID write blocked (attempt {attempt+1}); retrying after "
-                        f"{self._blockingio_retry_delay}s..."
-                    )
-                    await asyncio.sleep(self._blockingio_retry_delay)
+                if attempt < max_tries:
+                    _logger.debug(f"HID write blocked ({attempt}/{max_tries})")
+                    await asyncio.sleep(retry_delay)
                 else:
-                    _logger.warning(
-                        f"HID write blocked on final retry—skipping {event}."
-                    )
-                    return
+                    _logger.warning(f"HID write blocked ({attempt}/{max_tries})")
             except BrokenPipeError:
                 _logger.warning(
                     "BrokenPipeError: USB cable likely disconnected or power-only. "
@@ -475,7 +445,7 @@ class DeviceRelay:
                     self._relaying_active.clear()
                 return
             except Exception:
-                _logger.exception(f"Error processing event {event}")
+                _logger.exception(f"Error processing {event}")
                 return
 
 
@@ -493,40 +463,22 @@ class DeviceIdentifier:
         self._type = self._determine_identifier_type()
         self._normalized_value = self._normalize_identifier()
 
-    @property
-    def value(self) -> str:
-        """The raw string used to identify a device."""
-        return self._value
-
-    @property
-    def normalized_value(self) -> str:
-        """The normalized identifier string."""
-        return self._normalized_value
-
-    @property
-    def type(self) -> str:
-        """Indicate whether this identifier is a path, MAC, or name."""
-        return self._type
-
     def __str__(self) -> str:
-        return f'{self.type} "{self.value}"'
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.value})"
+        return f'{self._type} "{self._value}"'
 
     def _determine_identifier_type(self) -> str:
-        if re.match(r"^/dev/input/event.*$", self.value):
+        if re.match(r"^/dev/input/event.*$", self._value):
             return "path"
-        if re.match(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$", self.value):
+        if re.match(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$", self._value):
             return "mac"
         return "name"
 
     def _normalize_identifier(self) -> str:
-        if self.type == "path":
+        if self._type == "path":
             return self.value
-        if self.type == "mac":
-            return self.value.lower().replace("-", ":")
-        return self.value.lower()
+        if self._type == "mac":
+            return self._value.lower().replace("-", ":")
+        return self._value.lower()
 
     def matches(self, device: InputDevice) -> bool:
         """
@@ -536,11 +488,11 @@ class DeviceIdentifier:
         :return: True if matched, False otherwise
         :rtype: bool
         """
-        if self.type == "path":
-            return self.value == device.path
-        if self.type == "mac":
-            return self.normalized_value == (device.uniq or "").lower()
-        return self.normalized_value in device.name.lower()
+        if self._type == "path":
+            return self._value == device.path
+        if self._type == "mac":
+            return self._normalized_value == (device.uniq or "").lower()
+        return self._normalized_value in device.name.lower()
 
 
 async def async_list_input_devices() -> list[InputDevice]:

@@ -107,7 +107,6 @@ async def main() -> None:
     if udc_path is None:
         logger.error("No UDC detected! USB Gadget mode may not be enabled.")
         return
-
     logger.debug(f"Detected UDC state file: {udc_path}")
 
     async with (
