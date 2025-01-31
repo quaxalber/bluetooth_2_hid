@@ -2,7 +2,7 @@ import asyncio
 from asyncio import CancelledError, Task, TaskGroup
 from pathlib import Path
 import re
-from typing import Optional, Union, Any, Type
+from typing import Optional, Union
 
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.keyboard import Keyboard
