@@ -22,22 +22,6 @@ logger = get_logger()
 VERSION = "0.9.0"
 VERSIONED_NAME = f"Bluetooth 2 USB v{VERSION}"
 
-shutdown_event = asyncio.Event()
-
-
-def signal_handler(sig, frame):
-    """
-    Handles OS signals (SIGINT, SIGTERM, SIGQUIT, etc.) by setting
-    a global shutdown event that triggers graceful shutdown.
-    """
-    sig_name = signal.Signals(sig).name
-    logger.debug(f"Received signal: {sig_name}. Requesting graceful shutdown.")
-    shutdown_event.set()
-
-
-for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
-    signal.signal(sig, signal_handler)
-
 
 async def main() -> None:
     """
@@ -50,7 +34,6 @@ async def main() -> None:
       toggled by ``UdcStateMonitor`` when the UDC is configured.
     - Creates a TaskGroup to manage device-relay tasks.
     - Registers monitors for udev and UDC state changes.
-    - Waits for a shutdown signal to terminate gracefully.
     """
     args = parse_args()
 
@@ -119,8 +102,6 @@ async def main() -> None:
             ):
                 await relay_controller.load_initial_devices()
 
-                await shutdown_event.wait()
-                logger.debug("Shutdown event triggered.")
     except Exception as exc:
         logger.exception(
             "Unhandled exception encountered. Aborting mission.", exc_info=exc
