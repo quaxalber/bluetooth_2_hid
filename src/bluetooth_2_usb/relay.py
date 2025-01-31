@@ -23,23 +23,18 @@ from .logging import get_logger
 
 _logger = get_logger()
 
-PATH = "path"
-MAC = "MAC"
-NAME = "name"
-
-PATH_REGEX = r"^/dev/input/event.*$"
-MAC_REGEX = r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$"
-
 
 class GadgetManager:
     """
-    Manages enabling, disabling, and referencing USB HID gadget devices.
+    Manages enabling, disabling, and references to USB HID gadget devices.
+
+    :ivar _gadgets: Internal dictionary mapping device types to HID device objects
+    :ivar _enabled: Indicates whether the gadgets have been enabled
     """
 
     def __init__(self) -> None:
         """
-        USB devices (keyboard, mouse, consumer control) are uninitialized until
-        :meth:`enable_gadgets` is called.
+        Initialize without enabling devices. Call enable_gadgets() to enable them.
         """
         self._gadgets = {
             "keyboard": None,
@@ -50,21 +45,15 @@ class GadgetManager:
 
     def enable_gadgets(self) -> None:
         """
-        Disables and re-enables usb_hid devices to attach as mouse, keyboard,
-        and consumer control. Populates local references to those objects.
+        Disable and re-enable usb_hid devices, then store references
+        to the new Keyboard, Mouse, and ConsumerControl gadgets.
         """
         try:
             usb_hid.disable()
         except Exception as ex:
             _logger.debug(f"usb_hid.disable() failed or was already disabled: {ex}")
 
-        usb_hid.enable(
-            [
-                Device.BOOT_MOUSE,
-                Device.KEYBOARD,
-                Device.CONSUMER_CONTROL,
-            ]  # type: ignore
-        )
+        usb_hid.enable([Device.BOOT_MOUSE, Device.KEYBOARD, Device.CONSUMER_CONTROL])  # type: ignore
         enabled_devices = list(usb_hid.devices)  # type: ignore
 
         self._gadgets["keyboard"] = Keyboard(enabled_devices)
@@ -76,52 +65,69 @@ class GadgetManager:
 
     def is_enabled(self) -> bool:
         """
-        Indicates whether USB HID gadgets have been enabled.
+        Check if the HID gadgets are enabled.
 
-        :return: True if enabled, otherwise False.
+        :return: True if enabled, False otherwise
+        :rtype: bool
         """
         return self._enabled
 
     def get_keyboard(self) -> Optional[Keyboard]:
+        """
+        Get the Keyboard gadget.
+
+        :return: A Keyboard object, or None if not initialized
+        :rtype: Keyboard | None
+        """
         return self._gadgets["keyboard"]
 
     def get_mouse(self) -> Optional[Mouse]:
+        """
+        Get the Mouse gadget.
+
+        :return: A Mouse object, or None if not initialized
+        :rtype: Mouse | None
+        """
         return self._gadgets["mouse"]
 
     def get_consumer(self) -> Optional[ConsumerControl]:
+        """
+        Get the ConsumerControl gadget.
+
+        :return: A ConsumerControl object, or None if not initialized
+        :rtype: ConsumerControl | None
+        """
         return self._gadgets["consumer"]
 
 
 class ShortcutToggler:
     """
-    Tracks a user-defined keyboard shortcut that toggles relaying on/off
-    when the entire shortcut is pressed simultaneously.
+    Tracks a user-defined shortcut and toggles relaying on/off when the shortcut is pressed.
     """
 
     def __init__(
         self,
         shortcut_keys: set[str],
         relaying_active: asyncio.Event,
-        gadget_manager: "GadgetManager",
+        gadget_manager: GadgetManager,
     ) -> None:
         """
-        :param shortcut_keys: Set of evdev-style key names
-          (e.g. {"KEY_LEFTCTRL", "KEY_LEFTSHIFT", "KEY_Q"}).
-        :param relaying_active: Event controlling whether relaying is active.
-          If set, relaying is ON; if cleared, relaying is OFF.
-        :param gadget_manager: Reference to GadgetManager to release keys on toggle-off.
+        :param shortcut_keys: A set of evdev-style key names to detect
+        :param relaying_active: An asyncio.Event controlling whether relaying is active
+        :param gadget_manager: GadgetManager to release keyboard/mouse states on toggle
         """
         self.shortcut_keys = shortcut_keys
         self.relaying_active = relaying_active
         self.gadget_manager = gadget_manager
+
         self.currently_pressed: set[str] = set()
 
     def handle_key_event(self, event: KeyEvent) -> None:
         """
-        Processes an evdev KeyEvent to update pressed keys and toggle relaying
-        if all shortcut keys are pressed together.
+        Process a key press or release to detect the toggle shortcut.
 
-        :param event: KeyEvent from evdev.
+        :param event: The incoming KeyEvent from evdev
+        :type event: KeyEvent
         """
         key_name = find_key_name(event)
         if key_name is None:
@@ -137,15 +143,15 @@ class ShortcutToggler:
 
     def toggle_relaying(self) -> None:
         """
-        Toggles the global relaying state: if ON, turn OFF; if OFF, turn ON.
+        Toggle the global relaying state: if it was on, turn it off, otherwise turn it on.
         """
         if self.relaying_active.is_set():
-            kb = self.gadget_manager.get_keyboard()
-            ms = self.gadget_manager.get_mouse()
-            if kb:
-                kb.release_all()
-            if ms:
-                ms.release_all()
+            keyboard = self.gadget_manager.get_keyboard()
+            mouse = self.gadget_manager.get_mouse()
+            if keyboard:
+                keyboard.release_all()
+            if mouse:
+                mouse.release_all()
 
             self.currently_pressed.clear()
             self.relaying_active.clear()
@@ -157,8 +163,8 @@ class ShortcutToggler:
 
 class RelayController:
     """
-    Manages the device relays by creating tasks for each relevant input device,
-    responding to device add/remove events, etc.
+    Controls the creation and lifecycle of per-device relays.
+    Monitors add/remove events from udev and includes optional auto-discovery.
     """
 
     def __init__(
@@ -174,57 +180,66 @@ class RelayController:
         shortcut_toggler: Optional["ShortcutToggler"] = None,
     ) -> None:
         """
-        :param gadget_manager: Must be enabled before relays begin.
-        :param device_identifiers: List of strings identifying devices by path, MAC, or name substring.
-        :param auto_discover: If True, automatically relay devices not skipped by name prefix.
-        :param skip_name_prefixes: If auto_discover is True, skip these device-name prefixes.
-        :param grab_devices: If True, attempt to grab exclusive access to each device.
-        :param max_blockingio_retries: Times to retry a HID write if it raises BlockingIOError.
-        :param blockingio_retry_delay: Delay (seconds) between retries of a blocked HID write.
-        :param relaying_active: An asyncio.Event controlling whether we are relaying events.
-        :param shortcut_toggler: An optional ShortcutToggler instance for a global toggle shortcut.
+        :param gadget_manager: Provides the USB HID gadget devices
+        :param device_identifiers: A list of path, MAC, or name fragments to identify devices to relay
+        :param auto_discover: If True, relays all valid input devices except those skipped
+        :param skip_name_prefixes: A list of device.name prefixes to skip if auto_discover is True
+        :param grab_devices: If True, the relay tries to grab exclusive access to each device
+        :param max_blockingio_retries: Number of times to retry a HID write if blocked
+        :param blockingio_retry_delay: Delay between HID write retries
+        :param relaying_active: asyncio.Event to indicate if relaying is active
+        :param shortcut_toggler: ShortcutToggler to allow toggling relaying globally
         """
         self._gadget_manager = gadget_manager
-        self._device_ids = [DeviceIdentifier(id_) for id_ in (device_identifiers or [])]
+        self._device_ids = [DeviceIdentifier(id) for id in (device_identifiers or [])]
         self._auto_discover = auto_discover
         self._skip_name_prefixes = skip_name_prefixes or ["vc4-hdmi"]
         self._grab_devices = grab_devices
+        self._max_blockingio_retries = max_blockingio_retries
+        self._blockingio_retry_delay = blockingio_retry_delay
         self._relaying_active = relaying_active
         self._shortcut_toggler = shortcut_toggler
 
-        self._max_blockingio_retries = max_blockingio_retries
-        self._blockingio_retry_delay = blockingio_retry_delay
-
         self._active_tasks: dict[str, Task] = {}
         self._task_group: Optional[TaskGroup] = None
+        self._cancelled = False
 
-    def bind_task_group(self, task_group: TaskGroup) -> None:
+    async def async_relay_devices(self) -> None:
         """
-        Binds a TaskGroup to this controller so that newly added device tasks
-        are created within that TaskGroup.
+        Launch a TaskGroup that relays events from all matching devices.
+        Dynamically adds or removes tasks when devices appear or disappear.
 
-        :param task_group: The Python 3.11 TaskGroup to store tasks.
+        :return: Never returns unless an unrecoverable exception or cancellation occurs
+        :rtype: None
         """
-        self._task_group = task_group
+        try:
+            async with TaskGroup() as task_group:
+                self._task_group = task_group
+                _logger.debug("RelayController: TaskGroup started.")
 
-    async def load_initial_devices(self) -> None:
-        """
-        Scans for existing /dev/input/event* devices and adds them if they match
-        the configured rules (explicit IDs or auto-discovery).
-        """
-        devices = await async_list_input_devices()
-        for device in devices:
-            if self._should_relay(device):
-                self.add_device(device.path)
+                for device in await async_list_input_devices():
+                    if self._should_relay(device):
+                        self.add_device(device.path)
+
+                # Keep running unless canceled
+                while not self._cancelled:
+                    await asyncio.sleep(0.1)
+        except* Exception as exc_grp:
+            _logger.exception(
+                "RelayController: Exception in TaskGroup", exc_info=exc_grp
+            )
+        finally:
+            self._task_group = None
+            _logger.debug("RelayController: TaskGroup exited.")
 
     def add_device(self, device_path: str) -> None:
         """
-        Adds a newly discovered device if it passes checks and isn't already tracked.
+        Add a device by path. If a TaskGroup is active, create a new relay task.
 
-        :param device_path: Path string, e.g. "/dev/input/event5".
+        :param device_path: The absolute path to the input device (e.g., /dev/input/event5)
         """
         if not Path(device_path).exists():
-            _logger.debug(f"{device_path} does not exist. Skipping.")
+            _logger.debug(f"{device_path} does not exist.")
             return
 
         try:
@@ -234,7 +249,7 @@ class RelayController:
             return
 
         if self._task_group is None:
-            _logger.critical(f"No TaskGroup available; ignoring device {device}.")
+            _logger.critical(f"No TaskGroup available; ignoring {device}.")
             return
 
         if device.path in self._active_tasks:
@@ -245,32 +260,31 @@ class RelayController:
             self._async_relay_events(device), name=device.path
         )
         self._active_tasks[device.path] = task
-        _logger.info(f"Relay task created for device {device}.")
+        _logger.debug(f"Created task for {device}.")
 
     def remove_device(self, device_path: str) -> None:
         """
-        Removes a device, canceling its relay task if active.
+        Cancel and remove the relay task for a given device path.
 
-        :param device_path: String path to the input device, e.g. "/dev/input/event5".
+        :param device_path: The path of the device to remove
         """
         task = self._active_tasks.pop(device_path, None)
         if task and not task.done():
             _logger.debug(f"Cancelling relay for {device_path}.")
             task.cancel()
         else:
-            _logger.debug(f"No active relay task found for {device_path}.")
+            _logger.debug(f"No active task found for {device_path} to remove.")
 
     async def _async_relay_events(self, device: InputDevice) -> None:
         """
-        Main loop for reading events from a single InputDevice and forwarding them
-        to the USB HID gadgets.
+        Create a DeviceRelay context, then read events in a loop until cancellation or error.
 
-        :param device: The evdev InputDevice to relay.
+        :param device: The evdev InputDevice to relay
         """
         try:
             async with DeviceRelay(
-                device=device,
-                gadget_manager=self._gadget_manager,
+                device,
+                self._gadget_manager,
                 grab_device=self._grab_devices,
                 max_blockingio_retries=self._max_blockingio_retries,
                 blockingio_retry_delay=self._blockingio_retry_delay,
@@ -279,26 +293,24 @@ class RelayController:
             ) as relay:
                 _logger.info(f"Activated {relay}")
                 await relay.async_relay_events_loop()
-
         except CancelledError:
             _logger.debug(f"Relay cancelled for device {device}.")
             raise
         except (OSError, FileNotFoundError):
             _logger.info(f"Lost connection to {device}.")
-        except Exception as ex:
-            _logger.exception(
-                f"Unhandled exception in relay for {device}.", exc_info=ex
-            )
+        except Exception:
+            _logger.exception(f"Unhandled exception in relay for {device}.")
         finally:
             self.remove_device(device.path)
 
     def _should_relay(self, device: InputDevice) -> bool:
         """
-        Determines whether a device should be relayed based on auto-discovery,
-        skip prefix rules, or explicit device identifiers.
+        Decide if a device should be relayed based on auto_discover,
+        skip_name_prefixes, or user-specified device_identifiers.
 
-        :param device: evdev InputDevice.
-        :return: True if it should be relayed, False otherwise.
+        :param device: The input device to check
+        :return: True if we should relay it, False otherwise
+        :rtype: bool
         """
         name_lower = device.name.lower()
         if self._auto_discover:
@@ -312,14 +324,15 @@ class RelayController:
 
 class DeviceRelay:
     """
-    A per-device relay that forwards evdev input events to the appropriate
-    USB HID gadgets. When the device is grabbed, no other process receives
-    its events.
+    Relay a single InputDevice's events to USB HID gadgets.
+
+    - Optionally grabs the device exclusively.
+    - Retries HID writes if they raise BlockingIOError.
     """
 
     def __init__(
         self,
-        device: InputDevice,
+        input_device: InputDevice,
         gadget_manager: GadgetManager,
         grab_device: bool = False,
         max_blockingio_retries: int = 2,
@@ -328,29 +341,45 @@ class DeviceRelay:
         shortcut_toggler: Optional["ShortcutToggler"] = None,
     ) -> None:
         """
-        :param device: evdev InputDevice to read events from.
-        :param gadget_manager: Provides references to HID gadgets.
-        :param grab_device: If True, attempt exclusive access.
-        :param max_blockingio_retries: Times to retry if HID writes block.
-        :param blockingio_retry_delay: Delay between blocking write retries.
-        :param relaying_active: Controls whether events are forwarded.
-        :param shortcut_toggler: Optional ShortcutToggler for toggling relay on/off.
+        :param input_device: The evdev input device
+        :param gadget_manager: Provides references to Keyboard, Mouse, ConsumerControl
+        :param grab_device: Whether to grab the device for exclusive access
+        :param max_blockingio_retries: Times to retry a blocked HID write
+        :param blockingio_retry_delay: Delay between retries
+        :param relaying_active: asyncio.Event that indicates relaying is on/off
+        :param shortcut_toggler: Optional handler for toggling relay via a shortcut
         """
-        self._input_device = device
+        self._input_device = input_device
         self._gadget_manager = gadget_manager
         self._grab_device = grab_device
         self._max_blockingio_retries = max_blockingio_retries
         self._blockingio_retry_delay = blockingio_retry_delay
         self._relaying_active = relaying_active
         self._shortcut_toggler = shortcut_toggler
+
         self._currently_grabbed = False
+
+    def __str__(self) -> str:
+        return f"relay for {self._input_device}"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._input_device!r}, {self._grab_device})"
+
+    @property
+    def input_device(self) -> InputDevice:
+        """
+        The underlying evdev InputDevice being relayed.
+
+        :return: The InputDevice
+        :rtype: InputDevice
+        """
+        return self._input_device
 
     async def __aenter__(self) -> "DeviceRelay":
         """
-        Enters the DeviceRelay context, optionally grabbing exclusive access
-        to the device.
+        Async context manager entry. Grabs the device if requested.
 
-        :return: The DeviceRelay instance.
+        :return: self
         """
         if self._grab_device:
             try:
@@ -360,19 +389,12 @@ class DeviceRelay:
                 _logger.warning(f"Could not grab {self._input_device.path}: {ex}")
         return self
 
-    async def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> bool:
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
         """
-        Exits the DeviceRelay context, ungrabbing the device if necessary.
-        Returns False so that any exception is not suppressed.
+        Async context manager exit. Ungrabs the device if we grabbed it.
 
-        :return: Always False.
+        :return: False to propagate exceptions
         """
-        self._input_device.close()
         if self._grab_device:
             try:
                 self._input_device.ungrab()
@@ -381,16 +403,12 @@ class DeviceRelay:
                 _logger.warning(f"Unable to ungrab {self._input_device.path}: {ex}")
         return False
 
-    def __str__(self) -> str:
-        return f"Relay for {self._input_device}"
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._input_device!r}, grab={self._grab_device})"
-
     async def async_relay_events_loop(self) -> None:
         """
-        Continuously reads events from the device and relays them to HID.
-        Suspends relaying if ``relaying_active`` is cleared.
+        Continuously read events from the device and relay them
+        to the USB HID gadgets. Stops when canceled or on error.
+
+        :return: None
         """
         async for input_event in self._input_device.async_read_loop():
             event = categorize(input_event)
@@ -405,8 +423,9 @@ class DeviceRelay:
             if self._shortcut_toggler and isinstance(event, KeyEvent):
                 self._shortcut_toggler.handle_key_event(event)
 
-            active = self._relaying_active.is_set() if self._relaying_active else True
+            active = self._relaying_active and self._relaying_active.is_set()
 
+            # Dynamically grab/ungrab if relaying state changes
             if self._grab_device and active and not self._currently_grabbed:
                 try:
                     self._input_device.grab()
@@ -430,12 +449,10 @@ class DeviceRelay:
 
     async def _process_event_with_retry(self, event: InputEvent) -> None:
         """
-        Attempts to relay an event. Retries on BlockingIOError up to
-        ``_max_blockingio_retries`` times, then drops the event.
+        Attempt to relay the given event to the appropriate HID gadget.
+        Retry on BlockingIOError up to self._max_blockingio_retries.
 
-        Catches other exceptions to prevent relay-task crashes.
-
-        :param event: The evdev InputEvent to relay.
+        :param event: The InputEvent to process
         """
         for attempt in range(self._max_blockingio_retries):
             try:
@@ -445,110 +462,116 @@ class DeviceRelay:
                 if attempt < self._max_blockingio_retries - 1:
                     _logger.debug(
                         f"HID write blocked (attempt {attempt+1}); retrying after "
-                        f"{self._blockingio_retry_delay}s."
+                        f"{self._blockingio_retry_delay}s..."
                     )
                     await asyncio.sleep(self._blockingio_retry_delay)
                 else:
                     _logger.warning(
-                        f"HID write blocked on final retry—skipping event {event}."
+                        f"HID write blocked on final retry—skipping {event}."
                     )
                     return
             except BrokenPipeError:
                 _logger.warning(
-                    "BrokenPipeError: Possibly disconnected USB or power-only cable. Pausing relay."
+                    "BrokenPipeError: USB cable likely disconnected or power-only. "
+                    "Pausing relay.\nSee: "
+                    "https://github.com/quaxalber/bluetooth_2_usb?tab=readme-ov-file#7-troubleshooting"
                 )
                 if self._relaying_active:
                     self._relaying_active.clear()
                 return
-            except Exception as ex:
-                _logger.exception(f"Unexpected error processing event {event}: {ex}")
+            except Exception:
+                _logger.exception(f"Error processing event {event}")
                 return
 
 
 class DeviceIdentifier:
     """
-    Identifies an input device by path, MAC address, or substring of the device name.
+    Identifies an input device by path (/dev/input/eventX), MAC address,
+    or a substring of the device name.
     """
 
     def __init__(self, device_identifier: str) -> None:
+        """
+        :param device_identifier: Path, MAC, or name fragment
+        """
         self._value = device_identifier
         self._type = self._determine_identifier_type()
         self._normalized_value = self._normalize_identifier()
 
     @property
     def value(self) -> str:
+        """The raw string used to identify a device."""
         return self._value
 
     @property
     def normalized_value(self) -> str:
+        """The normalized identifier string."""
         return self._normalized_value
 
     @property
     def type(self) -> str:
+        """Indicate whether this identifier is a path, MAC, or name."""
         return self._type
 
     def __str__(self) -> str:
         return f'{self.type} "{self.value}"'
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.value!r})"
+        return f"{self.__class__.__name__}({self.value})"
 
     def _determine_identifier_type(self) -> str:
-        if re.match(PATH_REGEX, self._value):
-            return PATH
-        if re.match(MAC_REGEX, self._value):
-            return MAC
-        return NAME
+        if re.match(r"^/dev/input/event.*$", self.value):
+            return "path"
+        if re.match(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$", self.value):
+            return "mac"
+        return "name"
 
     def _normalize_identifier(self) -> str:
-        if self.type == PATH:
-            return self._value
-        if self.type == MAC:
-            return self._value.lower().replace("-", ":")
-        return self._value.lower()
+        if self.type == "path":
+            return self.value
+        if self.type == "mac":
+            return self.value.lower().replace("-", ":")
+        return self.value.lower()
 
     def matches(self, device: InputDevice) -> bool:
         """
-        Checks if this identifier matches the given device by:
+        Check whether this identifier matches the given evdev InputDevice.
 
-        - Path (exact match)
-        - MAC (comparing device.uniq)
-        - Name (substring match)
-
-        :param device: The evdev device to check.
-        :return: True if a match is found.
+        :param device: An evdev InputDevice to compare
+        :return: True if matched, False otherwise
+        :rtype: bool
         """
-        if self.type == PATH:
+        if self.type == "path":
             return self.value == device.path
-        if self.type == MAC:
+        if self.type == "mac":
             return self.normalized_value == (device.uniq or "").lower()
         return self.normalized_value in device.name.lower()
 
 
 async def async_list_input_devices() -> list[InputDevice]:
     """
-    Returns a list of /dev/input/event* devices, ignoring any that
-    cannot be opened.
+    Return a list of available /dev/input/event* devices.
 
-    :return: List of InputDevice objects.
+    :return: List of InputDevice objects
+    :rtype: list[InputDevice]
     """
     try:
         return [InputDevice(path) for path in list_devices()]
     except (OSError, FileNotFoundError) as ex:
         _logger.critical(f"Failed listing devices: {ex}")
         return []
-    except Exception as ex:
-        _logger.exception(f"Unexpected error listing devices: {ex}")
+    except Exception:
+        _logger.exception("Unexpected error listing devices")
         return []
 
 
 def relay_event(event: InputEvent, gadget_manager: GadgetManager) -> None:
     """
-    Routes an evdev InputEvent to the appropriate USB HID device
-    (mouse movement, mouse buttons, keyboard keys, consumer control).
+    Relay the given event to the appropriate USB HID device.
 
-    :param event: The evdev InputEvent (rel or key).
-    :param gadget_manager: Provides references to the USB HID devices.
+    :param event: The evdev InputEvent
+    :param gadget_manager: GadgetManager with references to HID devices
+    :raises BlockingIOError: If HID device write is blocked
     """
     if isinstance(event, RelEvent):
         move_mouse(event, gadget_manager)
@@ -558,10 +581,11 @@ def relay_event(event: InputEvent, gadget_manager: GadgetManager) -> None:
 
 def move_mouse(event: RelEvent, gadget_manager: GadgetManager) -> None:
     """
-    Sends mouse movement or wheel scroll to the USB HID Mouse gadget.
+    Relay relative mouse movement events to the USB HID Mouse gadget.
 
-    :param event: A rel-event describing mouse movement or wheel scroll.
-    :param gadget_manager: Access to the Mouse gadget instance.
+    :param event: A RelEvent describing the movement
+    :param gadget_manager: GadgetManager with Mouse reference
+    :raises RuntimeError: If Mouse gadget is not available
     """
     mouse = gadget_manager.get_mouse()
     if mouse is None:
@@ -573,11 +597,11 @@ def move_mouse(event: RelEvent, gadget_manager: GadgetManager) -> None:
 
 def send_key_event(event: KeyEvent, gadget_manager: GadgetManager) -> None:
     """
-    Sends a key-press or release event to Keyboard, Mouse (buttons),
-    or ConsumerControl.
+    Relay a key event (press/release) to the appropriate HID gadget.
 
-    :param event: A KeyEvent from evdev.
-    :param gadget_manager: Access to HID gadgets.
+    :param event: The KeyEvent to process
+    :param gadget_manager: GadgetManager with references to the HID devices
+    :raises RuntimeError: If no appropriate HID gadget is available
     """
     key_id, key_name = evdev_to_usb_hid(event)
     if key_id is None or key_name is None:
@@ -585,13 +609,13 @@ def send_key_event(event: KeyEvent, gadget_manager: GadgetManager) -> None:
 
     output_gadget = get_output_device(event, gadget_manager)
     if output_gadget is None:
-        raise RuntimeError("No appropriate USB gadget found.")
+        raise RuntimeError("No appropriate USB gadget found (manager not enabled?).")
 
     if event.keystate == KeyEvent.key_down:
-        _logger.debug(f"Pressing {key_name} (0x{key_id:02X}) on {output_gadget}")
+        _logger.debug(f"Pressing {key_name} (0x{key_id:02X}) via {output_gadget}")
         output_gadget.press(key_id)
     elif event.keystate == KeyEvent.key_up:
-        _logger.debug(f"Releasing {key_name} (0x{key_id:02X}) on {output_gadget}")
+        _logger.debug(f"Releasing {key_name} (0x{key_id:02X}) via {output_gadget}")
         output_gadget.release(key_id)
 
 
@@ -599,14 +623,11 @@ def get_output_device(
     event: KeyEvent, gadget_manager: GadgetManager
 ) -> Union[ConsumerControl, Keyboard, Mouse, None]:
     """
-    Chooses which HID gadget to use based on the KeyEvent type:
-    - Consumer keys go to ConsumerControl.
-    - Mouse buttons go to Mouse.
-    - All others go to Keyboard.
+    Determine which HID gadget to target for the given key event.
 
-    :param event: KeyEvent from evdev.
-    :param gadget_manager: Access to the relevant gadget objects.
-    :return: The appropriate gadget or None if none available.
+    :param event: The KeyEvent to process
+    :param gadget_manager: GadgetManager for HID references
+    :return: A ConsumerControl, Mouse, or Keyboard object, or None if not found
     """
     if is_consumer_key(event):
         return gadget_manager.get_consumer()
@@ -617,70 +638,53 @@ def get_output_device(
 
 class UdcStateMonitor:
     """
-    Monitors the UDC 'state' file in /sys/class/udc/<controller>/state.
-    When it reads 'configured', it sets the relaying_active event, otherwise clears it.
+    Monitors the UDC (USB Device Controller) state and
+    sets/clears an Event when the device is configured or not.
     """
 
     def __init__(
         self,
-        task_group: asyncio.TaskGroup,
         relaying_active: asyncio.Event,
         udc_path: Path = Path("/sys/class/udc/20980000.usb/state"),
         poll_interval: float = 0.5,
-    ):
+    ) -> None:
         """
-        :param relaying_active: Event controlling relay on/off.
-        :param udc_path: Path to the 'state' file for your UDC.
-        :param poll_interval: How often to check the file for changes, in seconds.
+        :param relaying_active: Event controlling whether relaying is active
+        :param udc_path: Path to the UDC state file
+        :param poll_interval: Interval (seconds) to re-check the UDC state
         """
-        self._task_group = task_group
         self._relaying_active = relaying_active
         self.udc_path = udc_path
         self.poll_interval = poll_interval
 
         self._stop = False
         self._task: Optional[asyncio.Task] = None
-        self._last_state: str | None = None
+        self._last_state: Optional[str] = None
 
         if not self.udc_path.is_file():
             _logger.warning(
-                f"UDC state file {self.udc_path} not found. UDC monitoring may not work."
+                f"UDC state file {self.udc_path} not found. Cable monitoring may be unavailable."
             )
 
-    async def __aenter__(self) -> "UdcStateMonitor":
+    async def __aenter__(self):
         """
-        Starts periodic polling of the UDC state file.
-
-        :return: This UdcStateMonitor instance.
+        Async context manager entry. Starts a background task to poll the UDC state.
         """
         self._stop = False
-        self._task = self._task_group.create_task(
-            self._poll_state_loop(), name="UdcStateMonitor"
-        )
+        self._task = asyncio.create_task(self._poll_state())
         return self
 
-    async def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> bool:
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
-        Stops the background polling task.
-
-        :return: False to not suppress exceptions.
+        Async context manager exit. Cancels the polling task.
         """
-        self._stop = True
-        if self._task and not self._task.done():
+        if self._task:
+            self._stop = True
             self._task.cancel()
-        _logger.debug("UdcStateMonitor finished.")
+            await asyncio.gather(self._task, return_exceptions=True)
         return False
 
-    async def _poll_state_loop(self) -> None:
-        """
-        Periodically reads the UDC state file and sets/clears relaying_active
-        based on whether the host is 'configured'.
-        """
+    async def _poll_state(self):
         while not self._stop:
             new_state = self._read_udc_state()
             if new_state != self._last_state:
@@ -690,10 +694,10 @@ class UdcStateMonitor:
 
     def _read_udc_state(self) -> str:
         """
-        Reads the UDC state file (e.g. 'configured', 'not attached', etc.)
-        If the file is not found, returns 'not_attached'.
+        Read the UDC state file. If not found, treat as "not_attached".
 
-        :return: Current state string.
+        :return: The current UDC state (e.g. "configured")
+        :rtype: str
         """
         try:
             with open(self.udc_path, "r") as f:
@@ -703,11 +707,13 @@ class UdcStateMonitor:
 
     def _handle_state_change(self, new_state: str):
         """
-        Sets or clears the relaying_active event based on 'configured' state.
+        Handle a change in the UDC state. If "configured", set relaying_active.
+        Otherwise clear it.
 
-        :param new_state: UDC state from the sysfs file.
+        :param new_state: The new UDC state
         """
-        _logger.debug(f"UDC state changed to '{new_state}'.")
+        _logger.debug(f"UDC state changed to '{new_state}'")
+
         if new_state == "configured":
             self._relaying_active.set()
         else:
@@ -716,51 +722,44 @@ class UdcStateMonitor:
 
 class UdevEventMonitor:
     """
-    Monitors udev for add/remove events on /dev/input/event* devices
-    and notifies the provided RelayController.
+    Monitors udev for /dev/input/event* add/remove events and
+    notifies the RelayController.
     """
 
-    def __init__(self, relay_controller: "RelayController") -> None:
+    def __init__(self, relay_controller: RelayController) -> None:
         """
-        :param relay_controller: The RelayController to notify on add/remove.
+        :param relay_controller: The RelayController to add/remove devices
+        :param loop: The asyncio event loop
         """
         self.relay_controller = relay_controller
 
         self.context = pyudev.Context()
-        self.monitor_input = pyudev.Monitor.from_netlink(self.context)
-        self.monitor_input.filter_by("input")
+        self.monitor = pyudev.Monitor.from_netlink(self.context)
+        self.monitor.filter_by("input")
+        self.observer = pyudev.MonitorObserver(self.monitor, self._udev_event_callback)
 
-        self.observer_input = pyudev.MonitorObserver(
-            self.monitor_input, self._udev_event_callback_input
-        )
-
-    async def __aenter__(self) -> "UdevEventMonitor":
+    async def __aenter__(self):
         """
-        Starts the MonitorObserver for /dev/input events.
+        Async context manager entry. Starts the pyudev monitor observer.
         """
-        self.observer_input.start()
+        self.observer.start()
         _logger.debug("UdevEventMonitor started observer.")
         return self
 
-    async def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> bool:
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         """
-        Stops the MonitorObserver.
+        Async context manager exit. Stops the pyudev monitor observer.
         """
-        self.observer_input.stop()
+        self.observer.stop()
         _logger.debug("UdevEventMonitor stopped observer.")
         return False
 
-    def _udev_event_callback_input(self, action: str, device: pyudev.Device) -> None:
+    def _udev_event_callback(self, action: str, device: pyudev.Device) -> None:
         """
-        Handles udev add/remove events for input devices.
+        pyudev callback for input devices.
 
-        :param action: 'add' or 'remove'.
-        :param device: pyudev.Device object with metadata.
+        :param action: "add" or "remove"
+        :param device: The pyudev device
         """
         device_node = device.device_node
         if not device_node or not device_node.startswith("/dev/input/event"):

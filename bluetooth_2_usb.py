@@ -22,18 +22,36 @@ logger = get_logger()
 VERSION = "0.9.0"
 VERSIONED_NAME = f"Bluetooth 2 USB v{VERSION}"
 
+shutdown_event = asyncio.Event()
+
+
+def signal_handler(sig, frame):
+    """
+    Signal handler that sets the global shutdown_event.
+
+    :param sig: Integer signal number
+    :param frame: Unused stack frame object
+    """
+    sig_name = signal.Signals(sig).name
+    logger.debug(f"Received signal: {sig_name}. Requesting graceful shutdown.")
+    shutdown_event.set()
+
+
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+    signal.signal(sig, signal_handler)
+
 
 async def main() -> None:
     """
-    Entrypoint that:
+    Main entry point for Bluetooth 2 USB.
 
-    - Parses command-line arguments.
-    - Sets up logging.
-    - Enables USB HID gadgets.
-    - Configures a global ``relaying_active`` event that is
-      toggled by ``UdcStateMonitor`` when the UDC is configured.
-    - Creates a TaskGroup to manage device-relay tasks.
-    - Registers monitors for udev and UDC state changes.
+    1. Parses command-line arguments.
+    2. Sets up logging according to the supplied flags.
+    3. Optionally lists devices or prints version before exiting.
+    4. Creates and enables the USB HID gadget.
+    5. Creates a RelayController to forward input events to the gadget.
+    6. Monitors for UDC state changes and new/removed /dev/input devices.
+    7. Waits for a shutdown signal to cancel tasks.
     """
     args = parse_args()
 
@@ -59,8 +77,8 @@ async def main() -> None:
     logger.debug(log_handlers_message)
     logger.info(f"Launching {VERSIONED_NAME}")
 
-    # This event is only set once the UDC is "configured" (via UdcStateMonitor)
     relaying_active = asyncio.Event()
+    relaying_active.clear()
 
     gadget_manager = GadgetManager()
     gadget_manager.enable_gadgets()
@@ -92,41 +110,39 @@ async def main() -> None:
 
     logger.debug(f"Detected UDC state file: {udc_path}")
 
-    try:
-        async with asyncio.TaskGroup() as tg:
-            relay_controller.bind_task_group(tg)
+    async with (
+        UdevEventMonitor(relay_controller),
+        UdcStateMonitor(
+            relaying_active=relaying_active,
+            udc_path=udc_path,
+        ),
+    ):
+        relay_task = asyncio.create_task(relay_controller.async_relay_devices())
+        await shutdown_event.wait()
 
-            async with (
-                UdevEventMonitor(relay_controller) as udev_monitor,
-                UdcStateMonitor(tg, relaying_active, udc_path=udc_path) as udc_monitor,
-            ):
-                await relay_controller.load_initial_devices()
-
-    except Exception as exc:
-        logger.exception(
-            "Unhandled exception encountered. Aborting mission.", exc_info=exc
-        )
-        sys.exit(1)
+        logger.debug("Shutdown event triggered. Cancelling relay task...")
+        relay_task.cancel()
+        await asyncio.gather(relay_task, return_exceptions=True)
 
 
 async def async_list_devices():
     """
-    Prints a list of available input devices for the ``--list-devices`` CLI argument.
+    Prints a list of available input devices and exits.
 
-    :return: None. Prints and exits.
+    :return: None
+    :raises SystemExit: Always exits after listing devices
     """
-    devices = await async_list_input_devices()
-    for dev in devices:
-        uniq_or_phys = dev.uniq if dev.uniq else dev.phys
-        print(f"{dev.name}\t{uniq_or_phys}\t{dev.path}")
+    for dev in await async_list_input_devices():
+        print(f"{dev.name}\t{dev.uniq if dev.uniq else dev.phys}\t{dev.path}")
     exit_safely()
 
 
 def print_version():
     """
-    Prints the version of Bluetooth 2 USB.
+    Prints the version of Bluetooth 2 USB and exits.
 
-    :return: None. Prints and exits.
+    :return: None
+    :raises SystemExit: Always exits after printing version
     """
     print(VERSIONED_NAME)
     exit_safely()
@@ -134,10 +150,11 @@ def print_version():
 
 def exit_safely():
     """
-    Unregisters the ``usb_hid.disable()`` atexit handler and exits,
-    to avoid errors if the script is invoked while already running (e.g. as a service).
+    Safely exits the script. Unregisters usb_hid.disable()
+    from atexit handlers to avoid potential exceptions.
 
-    :return: None. Exits the Python process.
+    :return: None
+    :raises SystemExit: Always exits
     """
     atexit.unregister(usb_hid.disable)
     sys.exit(0)
@@ -145,15 +162,13 @@ def exit_safely():
 
 def validate_shortcut(shortcut: list[str]) -> set[str]:
     """
-    Converts a list of raw key strings (e.g. ``["SHIFT", "CTRL", "Q"]``)
-    into a set of valid evdev-style names (e.g. ``{"KEY_LEFTSHIFT", "KEY_LEFTCTRL", "KEY_Q"}``).
+    Convert a list of raw key strings (e.g. ["SHIFT", "CTRL", "Q"])
+    into a set of valid evdev-style names (e.g. {"KEY_LEFTSHIFT", "KEY_LEFTCTRL", "KEY_Q"}).
 
-    - Uppercases each entry.
-    - Maps certain known aliases (e.g. SHIFT -> LEFTSHIFT).
-    - Ensures the final string starts with ``KEY_``.
-
-    :param shortcut: List of string key names.
-    :return: A set of normalized key names suitable for evdev -> USB HID mapping.
+    :param shortcut: List of key strings to convert
+    :type shortcut: list[str]
+    :return: A set of normalized key names
+    :rtype: set[str]
     """
     ALIAS_MAP = {
         "SHIFT": "LEFTSHIFT",
@@ -183,10 +198,10 @@ def validate_shortcut(shortcut: list[str]) -> set[str]:
 
 def get_udc_path() -> Path | None:
     """
-    Dynamically finds the UDC state file for the USB Device Controller.
-    Returns the full path to the ``state`` file or None if no UDC is found.
+    Dynamically find the UDC state file for the USB Device Controller.
 
-    :return: Path to the UDC's ``state`` file, or None if unavailable.
+    :return: The path to the "state" file for the first UDC or None if not found
+    :rtype: Path | None
     """
     udc_root = Path("/sys/class/udc")
 
@@ -202,10 +217,10 @@ def get_udc_path() -> Path | None:
 
 if __name__ == "__main__":
     """
-    Entry point for the script when run directly.
+    Entry point for the script.
     """
     try:
         asyncio.run(main())
     except Exception:
-        logger.exception("Unhandled exception during startup.")
+        logger.exception("Unhandled exception encountered. Aborting mission.")
         sys.exit(1)
