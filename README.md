@@ -361,13 +361,13 @@ Here's a few things you could try:
 - For easier degguging, you may temporarily stop the service and run the script manually, modifying arguments as required, e.g., increase log verbosity by appending `-d`:
 
   ```console
-  sudo service bluetooth_2_usb stop && sudo bluetooth_2_usb -ad ; sudo service bluetooth_2_usb start
+  { sudo service bluetooth_2_usb stop && sudo bluetooth_2_usb -gads CTRL+SHIFT+F12 ; } ; sudo service bluetooth_2_usb start
   ```
 
 - When you interact with your Bluetooth devices with `-d` set, you should see debug output in the logs such as:
 
   ```console
-  user@pi0w:~ $ sudo service bluetooth_2_usb stop && sudo bluetooth_2_usb -gads "CTRL+SHIFT+F12" ; sudo service bluetooth_2_usb start
+  user@pi0w:~ $ { sudo service bluetooth_2_usb stop && sudo bluetooth_2_usb -gads CTRL+SHIFT+F12 ; } ; sudo service bluetooth_2_usb start
   25-01-31 13:16:14 [DEBUG] CLI args: device_ids=None, auto_discover=True, grab_devices=True, interrupt_shortcut=['CTRL', 'SHIFT', 'F12'], list_devices=False, log_to_file=False, log_path=/var/log/bluetooth_2_usb/bluetooth_2_usb.log, debug=True, version=False
   25-01-31 13:16:14 [DEBUG] Logging to stdout
   25-01-31 13:16:14 [INFO] Launching Bluetooth 2 USB v0.9.0
